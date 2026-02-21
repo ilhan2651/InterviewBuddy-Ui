@@ -1,54 +1,139 @@
 // src/pages/InterviewRoom.jsx
 import React, { useState, useEffect, useRef } from 'react';
+import SimliAgent from '../components/SimliAgent';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Mic, MicOff, Send, X, Volume2 } from 'lucide-react';
+import { Mic, MicOff, Send, X, Volume2, Pause, Play, Timer, Square, RefreshCcw } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { submitAnswer, getCurrentQuestion } from '../services/api';
+import { submitAnswer, getCurrentQuestion, uploadAudio } from '../services/api';
 
 const InterviewRoom = () => {
     const { sessionId } = useParams();
     const navigate = useNavigate();
     const [currentQuestion, setCurrentQuestion] = useState('');
-    const [isRecording, setIsRecording] = useState(false);
+    const [recordingState, setRecordingState] = useState('idle'); // 'idle', 'recording', 'paused', 'recorded', 'sending'
+    const [timeLeft, setTimeLeft] = useState(120);
+    const [audioBlob, setAudioBlob] = useState(null);
+    const [uploadedFile, setUploadedFile] = useState(null);
     const [audioLevel, setAudioLevel] = useState(0);
     const [questionNumber, setQuestionNumber] = useState(1);
+    const [currentQuestionId, setCurrentQuestionId] = useState(null);
     const [totalQuestions, setTotalQuestions] = useState(10);
     const [isAvatarSpeaking, setIsAvatarSpeaking] = useState(false);
+    const [isSimliReady, setIsSimliReady] = useState(false);
+    const [currentAudioUrl, setCurrentAudioUrl] = useState(null);
     const canvasRef = useRef(null);
+    const videoRef = useRef(null);
+    const captureCanvasRef = useRef(null);
     const audioContextRef = useRef(null);
     const mediaRecorderRef = useRef(null);
+    const timerRef = useRef(null);
+    const shouldSendRef = useRef(false);
+    const lastPlayedAudioUrlRef = useRef(null);
+
+    const simliAgentRef = useRef(null);
 
     useEffect(() => {
         fetchQuestion();
         initializeAudioContext();
     }, []);
 
+    useEffect(() => {
+        if (isSimliReady && currentAudioUrl && lastPlayedAudioUrlRef.current !== currentAudioUrl) {
+            lastPlayedAudioUrlRef.current = currentAudioUrl;
+            playAIVoice(currentAudioUrl);
+        }
+    }, [isSimliReady, currentAudioUrl]);
+
+    useEffect(() => {
+        if (recordingState === 'recording') {
+            timerRef.current = setInterval(() => {
+                setTimeLeft((prev) => {
+                    if (prev <= 1) {
+                        clearInterval(timerRef.current);
+                        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+                            mediaRecorderRef.current.stop();
+                        }
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+        } else {
+            clearInterval(timerRef.current);
+        }
+
+        return () => clearInterval(timerRef.current);
+    }, [recordingState]);
+
+    const formatTime = (seconds) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+
     const fetchQuestion = async () => {
         try {
             const response = await getCurrentQuestion(sessionId);
             setCurrentQuestion(response.data.questionText);
             setQuestionNumber(response.data.questionNumber);
-            playAIVoice(response.data.audioUrl);
+            setCurrentQuestionId(response.data.id);
+            if (response.data.audioUrl) {
+                setCurrentAudioUrl(response.data.audioUrl);
+            }
         } catch (error) {
             console.error('Soru alınamadı', error);
         }
     };
 
-    const playAIVoice = (audioUrl) => {
-        const audio = new Audio(audioUrl);
+    const playAIVoice = async (audioUrl) => {
+        if (!audioUrl) return;
         setIsAvatarSpeaking(true);
+        try {
+            const fullUrl = audioUrl.startsWith('http') ? audioUrl : `http://localhost:5219/${audioUrl.replace(/^\//, '')}`;
 
-        audio.onended = () => {
+            const response = await fetch(fullUrl);
+            const arrayBuffer = await response.arrayBuffer();
+
+            // Simli expects 16kHz PCM16. Force decode at 16000Hz.
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const originalAudioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+            // OfflineAudioContext for safe downsampling to 16000Hz if needed
+            const offlineCtx = new OfflineAudioContext(1, originalAudioBuffer.duration * 16000, 16000);
+            const source = offlineCtx.createBufferSource();
+            source.buffer = originalAudioBuffer;
+            source.connect(offlineCtx.destination);
+            source.start();
+
+            const renderedBuffer = await offlineCtx.startRendering();
+            const pcmData = renderedBuffer.getChannelData(0);
+
+            // Convert to PCM16 Little-Endian
+            const outBuffer = new Int16Array(pcmData.length);
+            for (let i = 0; i < pcmData.length; i++) {
+                let s = Math.max(-1, Math.min(1, pcmData[i]));
+                outBuffer[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            }
+
+            // Send to Simli as Uint8Array byte stream
+            if (simliAgentRef.current) {
+                simliAgentRef.current.playAudio(new Uint8Array(outBuffer.buffer));
+            }
+        } catch (error) {
+            console.error("Audio play error", error);
             setIsAvatarSpeaking(false);
-        };
-
-        audio.play();
+        }
     };
 
     const initializeAudioContext = async () => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+            }
+
             const audioContext = new AudioContext();
             const analyser = audioContext.createAnalyser();
             const microphone = audioContext.createMediaStreamSource(stream);
@@ -63,8 +148,13 @@ const InterviewRoom = () => {
                 const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
                 setAudioLevel(average);
 
-                if (isRecording) {
+                if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
                     drawWaveform(dataArray);
+                } else if (canvasRef.current) {
+                    const canvas = canvasRef.current;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#1A1A2E';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
                 }
 
                 requestAnimationFrame(updateWaveform);
@@ -106,169 +196,359 @@ const InterviewRoom = () => {
         }
     };
 
-    const toggleRecording = () => {
-        if (isRecording) {
-            stopRecording();
-        } else {
-            startRecording();
-        }
-    };
+    const handleStartRecording = () => {
+        if (!audioContextRef.current?.stream) return;
 
-    const startRecording = () => {
-        setIsRecording(true);
+        setAudioBlob(null);
+        setTimeLeft(120);
+        setRecordingState('recording');
+        shouldSendRef.current = false;
+
         const mediaRecorder = new MediaRecorder(audioContextRef.current.stream);
         const audioChunks = [];
 
         mediaRecorder.ondataavailable = (event) => {
-            audioChunks.push(event.data);
+            if (event.data.size > 0) {
+                audioChunks.push(event.data);
+            }
         };
 
         mediaRecorder.onstop = async () => {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-            await submitUserAnswer(audioBlob);
+            const blob = new Blob(audioChunks, { type: 'audio/wav' });
+            setAudioBlob(blob);
+            setRecordingState('recorded');
+
+            if (shouldSendRef.current) {
+                shouldSendRef.current = false;
+                await submitUserAnswer(blob);
+            }
         };
 
-        mediaRecorder.start();
+        mediaRecorder.start(100);
         mediaRecorderRef.current = mediaRecorder;
     };
 
-    const stopRecording = () => {
-        setIsRecording(false);
-        if (mediaRecorderRef.current) {
+    const handlePauseRecording = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            mediaRecorderRef.current.pause();
+            setRecordingState('paused');
+        }
+    };
+
+    const handleResumeRecording = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
+            mediaRecorderRef.current.resume();
+            setRecordingState('recording');
+        }
+    };
+
+    const handleStopRecording = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
             mediaRecorderRef.current.stop();
         }
     };
 
-    const submitUserAnswer = async (audioBlob) => {
+    const handleSendAnswer = () => {
+        if (recordingState === 'recording' || recordingState === 'paused') {
+            shouldSendRef.current = true;
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+                mediaRecorderRef.current.stop();
+            }
+        } else if (audioBlob) {
+            submitUserAnswer(audioBlob);
+        } else if (uploadedFile) {
+            submitUserAnswer(uploadedFile);
+        }
+    };
+
+    const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setUploadedFile(file);
+        }
+    };
+
+    const submitUserAnswer = async (blobToSubmit) => {
+        setRecordingState('sending');
         try {
+            // Step 1: Upload the audio and get the path
             const formData = new FormData();
-            formData.append('audio', audioBlob);
-            formData.append('sessionId', sessionId);
+            formData.append('file', new File([blobToSubmit], 'answer.wav', { type: 'audio/wav' })); // backend "IFormFile file" bekliyor
 
-            const response = await submitAnswer(formData);
+            // Backend `upload-audio` endpointi { Path: relativePath } dönüyordu.
+            const uploadResponse = await uploadAudio(formData);
+            const audioPath = uploadResponse.data.path || uploadResponse.data.Path;
 
-            if (response.data.isComplete) {
+            // Capture snapshot
+            let base64Image = null;
+            if (videoRef.current && captureCanvasRef.current) {
+                const canvas = captureCanvasRef.current;
+                const video = videoRef.current;
+                if (video.videoWidth > 0) {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    base64Image = canvas.toDataURL('image/jpeg', 0.8);
+                }
+            }
+
+            // Step 2: Submit the answer as JSON
+            const submitPayload = {
+                interviewSessionId: parseInt(sessionId, 10),
+                questionId: currentQuestionId || questionNumber, // Use the actual DB Question ID, fallback just in case
+                answerText: "",
+                audioPath: audioPath,
+                base64Snapshot: base64Image
+            };
+
+            const response = await submitAnswer(submitPayload);
+
+            if (response.data.isCompleted) {
                 navigate(`/interview/report/${sessionId}`);
             } else {
-                setCurrentQuestion(response.data.nextQuestion);
-                setQuestionNumber(prev => prev + 1);
-                playAIVoice(response.data.audioUrl);
+                // Backend'den gelen yeni soru yapısına göre güncelleme:
+                const nextQ = response.data.nextQuestion;
+
+                if (nextQ) {
+                    setCurrentQuestion(nextQ.text);
+                    setCurrentQuestionId(nextQ.id); // Save the *new* Question ID
+                    setQuestionNumber(prev => prev + 1);
+                    setRecordingState('idle');
+                    setAudioBlob(null);
+                    setUploadedFile(null);
+                    setTimeLeft(120);
+
+                    if (nextQ.audioUrl) {
+                        setCurrentAudioUrl(nextQ.audioUrl);
+                    }
+                }
             }
         } catch (error) {
             console.error('Cevap gönderilemedi', error);
+            setRecordingState('recorded'); // keep recorded state on error
         }
     };
 
     const endInterview = () => {
-        navigate(`/interview/report/${sessionId}`);
+        navigate(`/dashboard`);
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-[#1A1A2E] via-[#252540] to-[#1A1A2E] relative overflow-hidden">
-            {/* Unity Avatar Placeholder (Bu kısım Unity WebGL entegrasyonu yapıldığında doldurulacak) */}
-            <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                    <div className={`w-64 h-64 rounded-full bg-gradient-to-br from-[#A8E6CF] to-[#DCD6F7] flex items-center justify-center ${isAvatarSpeaking ? 'animate-pulse' : ''}`}>
-                        <span className="text-8xl">🤖</span>
-                    </div>
-                    <p className="text-white mt-4 text-lg">
-                        {isAvatarSpeaking ? 'AI Konuşuyor...' : 'Cevabını Bekliyor...'}
-                    </p>
-                </div>
-            </div>
+        <div className="min-h-screen bg-gradient-to-br from-[#1A1A2E] via-[#252540] to-[#1A1A2E] flex flex-col relative overflow-hidden">
 
             {/* Progress Bar */}
-            <div className="absolute top-6 left-1/2 -translate-x-1/2 w-96">
-                <div className="flex justify-between text-sm text-gray-400 mb-2">
-                    <span>Soru {questionNumber}/{totalQuestions}</span>
-                    <span>{Math.round((questionNumber / totalQuestions) * 100)}%</span>
+            <div className="flex-shrink-0 px-6 pt-6 flex items-center justify-between z-10">
+                <div className="flex-1 max-w-md mx-auto">
+                    <div className="flex justify-between text-sm text-gray-400 mb-2">
+                        <span>Soru {questionNumber}/{totalQuestions}</span>
+                        <span>{Math.round((questionNumber / totalQuestions) * 100)}%</span>
+                    </div>
+                    <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-gradient-to-r from-[#A8E6CF] to-[#DCD6F7] transition-all duration-500"
+                            style={{ width: `${(questionNumber / totalQuestions) * 100}%` }}
+                        />
+                    </div>
                 </div>
-                <div className="h-2 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm">
-                    <div
-                        className="h-full bg-gradient-to-r from-[#A8E6CF] to-[#DCD6F7] transition-all duration-500"
-                        style={{ width: `${(questionNumber / totalQuestions) * 100}%` }}
-                    ></div>
+                <div className="ml-4">
+                    <Button variant="danger" size="sm" onClick={endInterview} className="bg-orange-500 hover:bg-orange-600 border-none">
+                        <X size={16} />
+                        Kaydet ve Çık
+                    </Button>
                 </div>
             </div>
 
-            {/* End Interview Button */}
-            <div className="absolute top-6 right-6">
-                <Button variant="danger" size="sm" onClick={endInterview}>
-                    <X size={16} />
-                    Bitir
-                </Button>
+            {/* Avatar - orta alan */}
+            <div className="flex-1 flex items-center justify-center p-4 relative">
+                <div className="w-full max-w-lg aspect-square">
+                    <SimliAgent ref={simliAgentRef} onStart={() => setIsSimliReady(true)} />
+                </div>
+
+                {/* Video Capture UI */}
+                <div className="absolute top-4 right-4 w-48 aspect-video bg-black/50 rounded-lg overflow-hidden shadow-2xl border-2 border-white/20 backdrop-blur-sm z-20">
+                    <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-full h-full object-cover transform -scale-x-100"
+                    />
+                </div>
             </div>
+
+            {/* Hidden canvas for taking pictures */}
+            <canvas ref={captureCanvasRef} className="hidden" />
 
             {/* Bottom Panel */}
-            <div className="absolute bottom-0 left-0 right-0 p-6">
+            <div className="flex-shrink-0 p-6">
                 <Card glass className="max-w-4xl mx-auto">
-                    {/* Question Display */}
-                    <div className="mb-6">
-                        <div className="flex items-center gap-2 mb-3">
+                    <div className="mb-4">
+                        <div className="flex items-center gap-2 mb-2">
                             <Volume2 className="text-[#A8E6CF]" size={20} />
                             <h3 className="text-lg font-semibold text-white">Soru:</h3>
+                            {currentAudioUrl && isSimliReady && (
+                                <button
+                                    onClick={() => playAIVoice(currentAudioUrl)}
+                                    className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-300 bg-white/5 hover:bg-white/10 hover:text-white rounded-lg transition-colors"
+                                >
+                                    <RefreshCcw size={16} />
+                                    Tekrar Dinle
+                                </button>
+                            )}
                         </div>
                         <p className="text-xl text-gray-200 leading-relaxed">
-                            {currentQuestion || 'Soru yükleniyor...'}
+                            <Typewriter text={currentQuestion || 'Soru yükleniyor...'} />
                         </p>
                     </div>
 
-                    {/* Waveform Visualization */}
-                    <div className="mb-6">
-                        <canvas
-                            ref={canvasRef}
-                            width={800}
-                            height={100}
-                            className="w-full rounded-2xl"
-                        />
+                    <div className="mb-4">
+                        <canvas ref={canvasRef} width={800} height={80} className="w-full rounded-xl" />
                     </div>
 
                     {/* Control Buttons */}
-                    <div className="flex items-center justify-center gap-4">
-                        <Button
-                            variant={isRecording ? 'danger' : 'primary'}
-                            size="lg"
-                            onClick={toggleRecording}
-                            className="w-48"
-                        >
-                            {isRecording ? (
-                                <>
-                                    <MicOff size={20} />
-                                    Kaydı Durdur
-                                </>
-                            ) : (
-                                <>
+                    <div className="flex flex-col items-center gap-6">
+                        {/* Timer Display */}
+                        {(recordingState === 'recording' || recordingState === 'paused' || recordingState === 'recorded') && (
+                            <div className={`flex items-center gap-2 px-4 py-2 rounded-full border ${recordingState === 'recorded' ? 'bg-gray-500/20 border-gray-500/30 text-gray-400' : timeLeft <= 10 ? 'bg-red-500/20 border-red-500/30 text-red-400' : 'bg-[#A8E6CF]/20 border-[#A8E6CF]/30 text-[#A8E6CF]'}`}>
+                                <Timer size={18} />
+                                <span className="font-mono text-lg font-medium">{formatTime(timeLeft)}</span>
+                            </div>
+                        )}
+
+                        <div className="flex items-center justify-center gap-4">
+                            {recordingState === 'idle' && !uploadedFile && (
+                                <Button variant="primary" size="lg" onClick={handleStartRecording} className="w-48">
                                     <Mic size={20} />
                                     Kayda Başla
+                                </Button>
+                            )}
+
+                            {recordingState === 'recording' && (
+                                <>
+                                    <Button variant="secondary" size="lg" onClick={handlePauseRecording} className="w-40">
+                                        <Pause size={20} />
+                                        Duraklat
+                                    </Button>
+                                    <Button variant="danger" size="lg" onClick={handleStopRecording} className="w-40">
+                                        <Square size={20} fill="currentColor" />
+                                        Bitir
+                                    </Button>
+                                    <Button variant="primary" size="lg" onClick={handleSendAnswer} className="w-40">
+                                        <Send size={20} />
+                                        Gönder
+                                    </Button>
                                 </>
                             )}
-                        </Button>
 
-                        {!isRecording && (
-                            <Button
-                                variant="secondary"
-                                size="lg"
-                                onClick={stopRecording}
-                            >
-                                <Send size={20} />
-                                Cevabı Gönder
-                            </Button>
+                            {recordingState === 'paused' && (
+                                <>
+                                    <Button variant="secondary" size="lg" onClick={handleResumeRecording} className="w-40">
+                                        <Play size={20} fill="currentColor" />
+                                        Devam Et
+                                    </Button>
+                                    <Button variant="primary" size="lg" onClick={handleSendAnswer} className="w-40">
+                                        <Send size={20} />
+                                        Gönder
+                                    </Button>
+                                </>
+                            )}
+
+                            {recordingState === 'recorded' && (
+                                <>
+                                    <Button variant="secondary" size="lg" onClick={handleStartRecording} className="w-48">
+                                        <Mic size={20} />
+                                        Yeniden Kaydet
+                                    </Button>
+                                    <Button variant="primary" size="lg" onClick={handleSendAnswer} className="w-48">
+                                        <Send size={20} />
+                                        Gönder
+                                    </Button>
+                                </>
+                            )}
+
+                            {recordingState === 'sending' && (
+                                <Button variant="secondary" size="lg" disabled className="w-48 opacity-70 cursor-not-allowed">
+                                    <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                                    Gönderiliyor...
+                                </Button>
+                            )}
+
+                            {recordingState === 'idle' && uploadedFile && (
+                                <>
+                                    <Button variant="secondary" size="lg" onClick={() => setUploadedFile(null)} className="w-40">
+                                        <X size={20} />
+                                        İptal
+                                    </Button>
+                                    <Button variant="primary" size="lg" onClick={handleSendAnswer} className="w-40 bg-green-500 hover:bg-green-600 border-none">
+                                        <Send size={20} />
+                                        Dosyayı Gönder
+                                    </Button>
+                                </>
+                            )}
+                        </div>
+
+                        {/* File Upload Alternative (visible when idle) */}
+                        {recordingState === 'idle' && !uploadedFile && (
+                            <div className="mt-4 flex flex-col items-center">
+                                <p className="text-gray-400 text-sm mb-2">veya</p>
+                                <label className="cursor-pointer flex items-center gap-2 px-4 py-2 border border-dashed border-gray-500 rounded-lg text-gray-400 hover:text-white hover:border-white transition-colors">
+                                    <span className="text-sm font-medium">Ses Dosyası Yükle (.mp3, .wav)</span>
+                                    <input
+                                        type="file"
+                                        accept="audio/*"
+                                        onChange={handleFileUpload}
+                                        className="hidden"
+                                    />
+                                </label>
+                            </div>
                         )}
-                    </div>
 
-                    {/* Recording Indicator */}
-                    {isRecording && (
-                        <div className="mt-4 text-center">
+                        {uploadedFile && (
+                            <div className="mt-4 text-center">
+                                <p className="text-[#A8E6CF] text-sm">Seçilen dosya: {uploadedFile.name}</p>
+                            </div>
+                        )}
+
+                        {/* Recording Indicator */}
+                        {recordingState === 'recording' && (
                             <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-full">
                                 <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
                                 <span className="text-red-400 text-sm font-medium">Kaydediliyor...</span>
                             </div>
-                        </div>
-                    )}
+                        )}
+                        {recordingState === 'paused' && (
+                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-500/20 border border-yellow-500/30 rounded-full">
+                                <Pause size={14} className="text-yellow-400" />
+                                <span className="text-yellow-400 text-sm font-medium">Duraklatıldı</span>
+                            </div>
+                        )}
+                    </div>
                 </Card>
             </div>
         </div>
     );
+};
+
+// Typewriter Effect Component
+const Typewriter = ({ text, speed = 30 }) => {
+    const [displayedText, setDisplayedText] = useState('');
+
+    useEffect(() => {
+        setDisplayedText('');
+        let i = 0;
+        const timer = setInterval(() => {
+            if (i < text.length) {
+                setDisplayedText(text.substring(0, i + 1));
+                i++;
+            } else {
+                clearInterval(timer);
+            }
+        }, speed);
+        return () => clearInterval(timer);
+    }, [text, speed]);
+
+    return <span>{displayedText}</span>;
 };
 
 export default InterviewRoom;

@@ -11,6 +11,7 @@ const Dashboard = () => {
     const navigate = useNavigate();
     const [stats, setStats] = useState(null);
     const [recentInterviews, setRecentInterviews] = useState([]);
+    const [uncompletedInterviews, setUncompletedInterviews] = useState([]);
 
     useEffect(() => {
         fetchData();
@@ -18,12 +19,14 @@ const Dashboard = () => {
 
     const fetchData = async () => {
         try {
-            const [statsRes, interviewsRes] = await Promise.all([
+            const [statsRes, interviewsRes, uncompletedRes] = await Promise.all([
                 getUserStats(),
-                getRecentInterviews()
+                getRecentInterviews(),
+                import('../services/api').then(m => m.getUncompletedInterviews()) // imported inline for safety if not at top
             ]);
             setStats(statsRes.data);
             setRecentInterviews(interviewsRes.data);
+            setUncompletedInterviews(uncompletedRes.data);
         } catch (error) {
             console.error('Veri yüklenemedi', error);
         }
@@ -40,20 +43,59 @@ const Dashboard = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Sol Panel - Recent Interviews */}
+                {/* Sol Panel - Recent & Uncompleted Interviews */}
                 <div className="lg:col-span-1 space-y-4">
+
+                    {uncompletedInterviews.length > 0 && (
+                        <>
+                            <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+                                <Clock className="text-orange-400" size={24} />
+                                Yarım Kalan Mülakatlar
+                            </h2>
+                            {uncompletedInterviews.map((interview, idx) => (
+                                <Card key={`uncompleted-${idx}`} glass hover className="cursor-pointer border-orange-500/30">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h3 className="font-semibold text-white">{interview.role}</h3>
+                                        <Button
+                                            variant="primary"
+                                            size="sm"
+                                            onClick={() => navigate(`/interview/session/${interview.publicSessionId || interview.sessionId}`)}
+                                            className="bg-orange-500 hover:bg-orange-600 text-white border-none py-1 px-3 text-xs"
+                                        >
+                                            <PlayCircle size={14} className="mr-1" inline />
+                                            Devam Et
+                                        </Button>
+                                    </div>
+                                    <p className="text-sm text-gray-400 mb-1">{interview.date}</p>
+                                    <p className="text-xs text-orange-400/80">Tamamlanmadı</p>
+                                </Card>
+                            ))}
+                            <div className="h-4"></div>
+                        </>
+                    )}
+
                     <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
                         <Clock className="text-[#A8E6CF]" size={24} />
                         Son Mülakatlar
                     </h2>
 
+                    {recentInterviews.length === 0 && uncompletedInterviews.length === 0 && (
+                        <p className="text-sm text-gray-500 italic">Henüz bir mülakat bulunmuyor.</p>
+                    )}
+
                     {recentInterviews.map((interview, idx) => (
-                        <Card key={idx} glass hover className="cursor-pointer">
+                        <Card
+                            key={idx}
+                            glass
+                            hover
+                            className="cursor-pointer"
+                            onClick={() => navigate(`/interview/report/${interview.publicSessionId || interview.sessionId}`)}
+                        >
                             <div className="flex items-center justify-between mb-2">
                                 <h3 className="font-semibold text-white">{interview.role}</h3>
                                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${interview.score >= 80 ? 'bg-green-500/20 text-green-400' :
-                                        interview.score >= 60 ? 'bg-yellow-500/20 text-yellow-400' :
-                                            'bg-red-500/20 text-red-400'
+                                    interview.score >= 60 ? 'bg-yellow-500/20 text-yellow-400' :
+                                        'bg-red-500/20 text-red-400'
                                     }`}>
                                     {interview.score}/100
                                 </span>

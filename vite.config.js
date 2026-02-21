@@ -8,4 +8,16 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    proxy: {
+      '/audio': {
+        target: 'http://localhost:5219',
+        changeOrigin: true,
+      },
+      '/api': {
+        target: 'http://localhost:5219',
+        changeOrigin: true,
+      }
+    }
+  }
 })

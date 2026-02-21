@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import InterviewSetup from './pages/InterviewSetup';
 import InterviewRoom from './pages/InterviewRoom';
 import FeedbackReport from './pages/FeedbackReport';
+import AdminDashboard from './pages/AdminDashboard';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
@@ -57,6 +58,16 @@ function App() {
                     element={
                         <ProtectedRoute>
                             <FeedbackReport />
+                        </ProtectedRoute>
+                    }
+                />
+
+                {/* Admin Route */}
+                <Route
+                    path="/admin/dashboard"
+                    element={
+                        <ProtectedRoute>
+                            <AdminDashboard />
                         </ProtectedRoute>
                     }
                 />

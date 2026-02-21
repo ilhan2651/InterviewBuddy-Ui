@@ -207,16 +207,58 @@ const FeedbackReport = () => {
 
                                         <div>
                                             <h4 className="text-sm font-semibold text-gray-400 mb-2">AI Değerlendirmesi:</h4>
-                                            <p className="text-gray-300 bg-white/5 p-4 rounded-xl leading-relaxed">
+                                            <p className="text-gray-300 bg-white/5 p-4 rounded-xl leading-relaxed whitespace-pre-wrap">
                                                 {qa.aiFeedback}
                                             </p>
                                         </div>
 
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-sm text-gray-400">Puan:</span>
-                                            <span className={`text-lg font-bold ${getScoreColor(qa.score)}`}>
-                                                {qa.score}/100
-                                            </span>
+                                        {qa.videoFeedback && (
+                                            <div>
+                                                <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-400 mb-2">
+                                                    <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                                                    Kamera ve Ortam Değerlendirmesi:
+                                                </h4>
+                                                <p className="text-gray-300 bg-white/5 p-4 rounded-xl leading-relaxed whitespace-pre-wrap">
+                                                    {qa.videoFeedback}
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {qa.audioFeedback && (
+                                            <div>
+                                                <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-400 mb-2">
+                                                    <span className="w-2 h-2 rounded-full bg-purple-400"></span>
+                                                    Ses Tonu ve Diksiyon:
+                                                </h4>
+                                                <p className="text-gray-300 bg-white/5 p-4 rounded-xl leading-relaxed whitespace-pre-wrap">
+                                                    {qa.audioFeedback}
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        <div className="flex items-center flex-wrap gap-4 mt-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm text-gray-400">Soru Puanı:</span>
+                                                <span className={`text-lg font-bold ${getScoreColor(qa.score)}`}>
+                                                    {qa.score}/100
+                                                </span>
+                                            </div>
+                                            {qa.videoScore != null && (
+                                                <div className="flex items-center gap-2 bg-blue-500/10 px-2 py-1 rounded">
+                                                    <span className="text-xs text-blue-400">Kamera:</span>
+                                                    <span className={`text-sm font-bold ${getScoreColor(qa.videoScore)}`}>
+                                                        {qa.videoScore}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            {qa.audioScore != null && (
+                                                <div className="flex items-center gap-2 bg-purple-500/10 px-2 py-1 rounded">
+                                                    <span className="text-xs text-purple-400">Ses/Diksiyon:</span>
+                                                    <span className={`text-sm font-bold ${getScoreColor(qa.audioScore)}`}>
+                                                        {qa.audioScore}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )}
