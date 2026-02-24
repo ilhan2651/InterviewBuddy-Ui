@@ -4,16 +4,24 @@ import { useNavigate } from 'react-router-dom';
 import { Briefcase, Activity, Mic, Play, CheckCircle, AlertTriangle } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { startInterview } from '../services/api';
+import { startInterview, getQuotaStatus } from '../services/api';
+import ApiKeysModal from '../components/ApiKeysModal';
 
 const InterviewSetup = () => {
     const navigate = useNavigate();
+
+    // New States
+    const [profession, setProfession] = useState('Yazılım Geliştirme');
+    const [customProfession, setCustomProfession] = useState('');
     const [role, setRole] = useState('Frontend Developer');
     const [level, setLevel] = useState('Junior');
+    const [difficulty, setDifficulty] = useState('Medium');
     const [language, setLanguage] = useState('Turkish');
+
     const [microphonePermission, setMicrophonePermission] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [showApiModal, setShowApiModal] = useState(false);
 
     useEffect(() => {
         checkMicrophone();
@@ -35,15 +43,36 @@ const InterviewSetup = () => {
         setError(null);
 
         try {
+            // Check quota first
+            const quotaResponse = await getQuotaStatus();
+            const { hasFreeQuota, hasOwnKeys } = quotaResponse.data;
+
+            if (!hasFreeQuota && !hasOwnKeys) {
+                setShowApiModal(true);
+                setIsLoading(false);
+                return;
+            }
+
+            // Resolve Profession
+            const finalProfession = profession === 'Diğer' ? customProfession : profession;
+
+            if (!finalProfession) {
+                setError('Lütfen bir meslek veya alan belirtin.');
+                setIsLoading(false);
+                return;
+            }
+
             const response = await startInterview({
-                role,
+                profession: finalProfession,
+                jobTitle: role,
                 level,
+                difficulty,
                 language
             });
 
             // Mülakat başlatıldı, yönlendirme yapılıyor
             setTimeout(() => {
-                navigate(`/interview/session/${response.data.interviewSessionId}`);
+                navigate(`/interview/session/${response.data.sessionId}`);
             }, 1000); // 1 saniye bekle ki kullanıcı "Hazırlanıyor" yazısını görsün
 
         } catch (error) {
@@ -53,16 +82,63 @@ const InterviewSetup = () => {
         }
     };
 
-    const roles = [
-        'Frontend Developer',
-        'Backend Developer',
-        'Full Stack Developer',
-        'Mobile Developer',
-        'DevOps Engineer',
-        'Data Scientist'
+    const handleApiKeysSaved = () => {
+        setShowApiModal(false);
+        // Automatically start the interview after keys are saved
+        handleStartInterview();
+    };
+
+    const professions = [
+        'Yazılım Geliştirme',
+        'Veri Bilimi ve Yapay Zeka',
+        'Sistem ve Ağ Yönetimi',
+        'Siber Güvenlik',
+        'Oyun Geliştirme',
+        'Diğer'
     ];
 
+    const rolesByProfession = {
+        'Yazılım Geliştirme': [
+            'Frontend Developer', 'Backend Developer', 'Full Stack Developer',
+            'Mobile iOS Developer', 'Mobile Android Developer', 'QA Automation Engineer', 'Software Architect'
+        ],
+        'Veri Bilimi ve Yapay Zeka': [
+            'Data Scientist', 'Data Engineer', 'Machine Learning Engineer',
+            'AI Researcher', 'Data Analyst', 'BI Developer'
+        ],
+        'Sistem ve Ağ Yönetimi': [
+            'DevOps Engineer', 'Cloud Architect', 'Systems Administrator',
+            'Network Engineer', 'Site Reliability Engineer (SRE)'
+        ],
+        'Siber Güvenlik': [
+            'Penetration Tester', 'Security Analyst', 'Security Engineer',
+            'Information Security Officer', 'Vulnerability Assessor'
+        ],
+        'Oyun Geliştirme': [
+            'Unity Developer', 'Unreal Engine Developer', 'Game Designer',
+            'Gameplay Programmer', '3D Generalist'
+        ],
+        'Diğer': [
+            'Project Manager', 'Product Manager', 'Scrum Master', 'IT Support'
+        ]
+    };
+
+    // Ensure Role is valid when Profession changes
+    useEffect(() => {
+        const availableRoles = rolesByProfession[profession] || [];
+        if (!availableRoles.includes(role)) {
+            setRole(availableRoles[0] || 'IT Professional');
+        }
+    }, [profession]);
+
     const levels = ['Junior', 'Mid-Level', 'Senior'];
+
+    // Difficulty Mapping (Value sent to BE vs Label)
+    const difficulties = [
+        { id: 'Easy', label: 'Kolay' },
+        { id: 'Medium', label: 'Orta' },
+        { id: 'Hard', label: 'Zor' }
+    ];
 
     const languages = [
         { id: 'Turkish', label: 'Türkçe' },
@@ -114,18 +190,49 @@ const InterviewSetup = () => {
                     </div>
 
                     <div className="space-y-6">
-                        {/* Role Selection */}
+                        {/* Profession Selection */}
                         <div className="space-y-3">
                             <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
                                 <Briefcase size={16} className="text-[#A8E6CF]" />
-                                Hedeflenen Rol
+                                Meslek Alanı
                             </label>
                             <div className="grid grid-cols-2 gap-3">
-                                {roles.map((r) => (
+                                {professions.map((p) => (
+                                    <button
+                                        key={p}
+                                        onClick={() => setProfession(p)}
+                                        className={`p-2.5 rounded-xl text-xs font-medium transition-all duration-300 border ${profession === p
+                                            ? 'bg-[#A8E6CF]/20 border-[#A8E6CF] text-white shadow-[0_0_15px_rgba(168,230,207,0.3)]'
+                                            : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:border-white/20'
+                                            }`}
+                                    >
+                                        {p}
+                                    </button>
+                                ))}
+                            </div>
+                            {profession === 'Diğer' && (
+                                <input
+                                    type="text"
+                                    value={customProfession}
+                                    onChange={(e) => setCustomProfession(e.target.value)}
+                                    placeholder="Lütfen mesleğinizi / alanınızı yazın..."
+                                    className="w-full mt-2 bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#A8E6CF]/50 transition-colors"
+                                />
+                            )}
+                        </div>
+
+                        {/* Role / Job Title Selection */}
+                        <div className="space-y-3">
+                            <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+                                <Briefcase size={16} className="text-[#A8E6CF]" />
+                                Pozisyon / Rol
+                            </label>
+                            <div className="grid grid-cols-2 gap-3">
+                                {rolesByProfession[profession]?.map((r) => (
                                     <button
                                         key={r}
                                         onClick={() => setRole(r)}
-                                        className={`p-3 rounded-xl text-sm font-medium transition-all duration-300 border ${role === r
+                                        className={`p-2.5 rounded-xl text-xs font-medium transition-all duration-300 border ${role === r
                                             ? 'bg-[#A8E6CF]/20 border-[#A8E6CF] text-white shadow-[0_0_15px_rgba(168,230,207,0.3)]'
                                             : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:border-white/20'
                                             }`}
@@ -147,7 +254,7 @@ const InterviewSetup = () => {
                                     <button
                                         key={l}
                                         onClick={() => setLevel(l)}
-                                        className={`flex-1 p-3 rounded-xl text-sm font-medium transition-all duration-300 border ${level === l
+                                        className={`flex-1 p-2.5 rounded-xl text-sm font-medium transition-all duration-300 border ${level === l
                                             ? 'bg-[#DCD6F7]/20 border-[#DCD6F7] text-white shadow-[0_0_15px_rgba(220,214,247,0.3)]'
                                             : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:border-white/20'
                                             }`}
@@ -158,6 +265,27 @@ const InterviewSetup = () => {
                             </div>
                         </div>
 
+                        {/* Difficulty Selection */}
+                        <div className="space-y-3">
+                            <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+                                <Activity size={16} className="text-[#F2A365]" />
+                                Soruların Zorluğu
+                            </label>
+                            <div className="flex gap-3">
+                                {difficulties.map((diff) => (
+                                    <button
+                                        key={diff.id}
+                                        onClick={() => setDifficulty(diff.id)}
+                                        className={`flex-1 p-2.5 rounded-xl text-sm font-medium transition-all duration-300 border ${difficulty === diff.id
+                                            ? 'bg-[#F2A365]/20 border-[#F2A365] text-white shadow-[0_0_15px_rgba(242,163,101,0.3)]'
+                                            : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:border-white/20'
+                                            }`}
+                                    >
+                                        {diff.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                         {/* Language Selection */}
                         <div className="space-y-3">
                             <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
@@ -208,12 +336,16 @@ const InterviewSetup = () => {
                             <h3 className="text-lg font-semibold text-white mb-4">Özet</h3>
                             <div className="space-y-3">
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-400">Seçilen Rol:</span>
-                                    <span className="text-[#A8E6CF] font-medium">{role}</span>
+                                    <span className="text-gray-400">Alan / Pozisyon:</span>
+                                    <span className="text-[#A8E6CF] font-medium">{profession === 'Diğer' && customProfession ? customProfession : profession} ({role})</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-gray-400">Seviye:</span>
                                     <span className="text-[#DCD6F7] font-medium">{level}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-400">Zorluk:</span>
+                                    <span className="text-[#F2A365] font-medium">{difficulties.find(d => d.id === difficulty)?.label}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-gray-400">Dil:</span>
@@ -256,6 +388,13 @@ const InterviewSetup = () => {
                     </div>
                 </div>
             </Card>
+
+            {/* API Keys Modal */}
+            <ApiKeysModal
+                isOpen={showApiModal}
+                onClose={() => setShowApiModal(false)}
+                onSuccess={handleApiKeysSaved}
+            />
         </div>
     );
 };

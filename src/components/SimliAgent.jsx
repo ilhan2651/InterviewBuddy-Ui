@@ -15,6 +15,14 @@ const SimliAgent = forwardRef(({ onStart }, ref) => {
             if (simliClientRef.current) {
                 simliClientRef.current.sendAudioData(new Uint8Array(audioData));
             }
+        },
+        interrupt: () => {
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current.currentTime = 0;
+            }
+            // If Simli has a buffer clearing mechanism, it would go here.
+            // For now, pausing the audio element is the most direct way to stop sound.
         }
     }));
     const startSimli = useCallback(async () => {

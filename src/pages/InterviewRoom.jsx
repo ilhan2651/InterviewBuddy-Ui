@@ -11,17 +11,21 @@ const InterviewRoom = () => {
     const { sessionId } = useParams();
     const navigate = useNavigate();
     const [currentQuestion, setCurrentQuestion] = useState('');
+    const [currentImageUrl, setCurrentImageUrl] = useState(null);
+    const [currentCodeSnippet, setCurrentCodeSnippet] = useState(null);
     const [recordingState, setRecordingState] = useState('idle'); // 'idle', 'recording', 'paused', 'recorded', 'sending'
     const [timeLeft, setTimeLeft] = useState(120);
     const [audioBlob, setAudioBlob] = useState(null);
     const [uploadedFile, setUploadedFile] = useState(null);
     const [audioLevel, setAudioLevel] = useState(0);
-    const [questionNumber, setQuestionNumber] = useState(1);
+    const [questionNumber, setQuestionNumber] = useState("1");
     const [currentQuestionId, setCurrentQuestionId] = useState(null);
-    const [totalQuestions, setTotalQuestions] = useState(10);
+    const [totalQuestions, setTotalQuestions] = useState(8);
     const [isAvatarSpeaking, setIsAvatarSpeaking] = useState(false);
     const [isSimliReady, setIsSimliReady] = useState(false);
     const [currentAudioUrl, setCurrentAudioUrl] = useState(null);
+    const [isQuestionStarted, setIsQuestionStarted] = useState(false);
+    const [isDeveloperMode, setIsDeveloperMode] = useState(false); // Developer mode switch
     const canvasRef = useRef(null);
     const videoRef = useRef(null);
     const captureCanvasRef = useRef(null);
@@ -30,6 +34,7 @@ const InterviewRoom = () => {
     const timerRef = useRef(null);
     const shouldSendRef = useRef(false);
     const lastPlayedAudioUrlRef = useRef(null);
+    const fallbackAudioRef = useRef(null);
 
     const simliAgentRef = useRef(null);
 
@@ -38,12 +43,48 @@ const InterviewRoom = () => {
         initializeAudioContext();
     }, []);
 
-    useEffect(() => {
-        if (isSimliReady && currentAudioUrl && lastPlayedAudioUrlRef.current !== currentAudioUrl) {
-            lastPlayedAudioUrlRef.current = currentAudioUrl;
-            playAIVoice(currentAudioUrl);
+    // Fallback: Play audio directly through browser if Simli is not available
+    const playAudioFallback = (audioUrl) => {
+        if (!audioUrl) return;
+        const fullUrl = audioUrl.startsWith('http') ? audioUrl : `http://localhost:5219/${audioUrl.replace(/^\//, '')}`;
+
+        if (fallbackAudioRef.current) {
+            fallbackAudioRef.current.pause();
         }
-    }, [isSimliReady, currentAudioUrl]);
+
+        const audio = new Audio(fullUrl);
+        fallbackAudioRef.current = audio;
+
+        audio.onplay = () => setIsAvatarSpeaking(true);
+        audio.onended = () => setIsAvatarSpeaking(false);
+        audio.onerror = () => setIsAvatarSpeaking(false);
+        audio.play().catch(err => console.error("Fallback audio play error:", err));
+        setIsQuestionStarted(true);
+    };
+
+    useEffect(() => {
+        if (currentAudioUrl && lastPlayedAudioUrlRef.current !== currentAudioUrl) {
+            if (isSimliReady) {
+                // Simli is ready, use avatar lip-sync
+                lastPlayedAudioUrlRef.current = currentAudioUrl;
+                playAIVoice(currentAudioUrl);
+                setIsQuestionStarted(true);
+            } else {
+                // For the VERY FIRST question, we wait strictly for Simli (unless it takes forever - 12s)
+                const isFirstQuestion = questionNumber === "1";
+                const waitTime = isFirstQuestion ? 12000 : 8000;
+
+                const timeout = setTimeout(() => {
+                    if (!isSimliReady && lastPlayedAudioUrlRef.current !== currentAudioUrl) {
+                        console.warn(`Simli not ready after ${waitTime / 1000}s, falling back to browser audio.`);
+                        lastPlayedAudioUrlRef.current = currentAudioUrl;
+                        playAudioFallback(currentAudioUrl);
+                    }
+                }, waitTime);
+                return () => clearTimeout(timeout);
+            }
+        }
+    }, [isSimliReady, currentAudioUrl, questionNumber]);
 
     useEffect(() => {
         if (recordingState === 'recording') {
@@ -72,15 +113,20 @@ const InterviewRoom = () => {
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
-    const fetchQuestion = async () => {
+    const fetchQuestion = async (targetNum = null) => {
         try {
-            const response = await getCurrentQuestion(sessionId);
+            const response = await getCurrentQuestion(sessionId, targetNum);
             setCurrentQuestion(response.data.questionText);
-            setQuestionNumber(response.data.questionNumber);
+            setIsQuestionStarted(false); // Reset sequence
+            setQuestionNumber(response.data.displayNumber || response.data.questionNumber || "1");
+            if (response.data.totalQuestions) setTotalQuestions(response.data.totalQuestions);
             setCurrentQuestionId(response.data.id);
             if (response.data.audioUrl) {
                 setCurrentAudioUrl(response.data.audioUrl);
             }
+            // Visual Enhancements
+            setCurrentImageUrl(response.data.imageUrl || null);
+            setCurrentCodeSnippet(response.data.codeSnippet || null);
         } catch (error) {
             console.error('Soru alınamadı', error);
         }
@@ -249,6 +295,23 @@ const InterviewRoom = () => {
     };
 
     const handleSendAnswer = () => {
+        // Interrupt avatar speech immediately when sending
+        if (simliAgentRef.current) {
+            simliAgentRef.current.interrupt();
+        }
+
+        if (fallbackAudioRef.current) {
+            fallbackAudioRef.current.pause();
+            fallbackAudioRef.current.currentTime = 0;
+        }
+
+        setIsAvatarSpeaking(false);
+
+        // Stop any external fallback audio if playing
+        // (Note: Since playAudioFallback creates a local 'new Audio()', 
+        // we might want to store a reference to it to stop it properly. 
+        // For now, this handles the main avatar case).
+
         if (recordingState === 'recording' || recordingState === 'paused') {
             shouldSendRef.current = true;
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -295,7 +358,7 @@ const InterviewRoom = () => {
 
             // Step 2: Submit the answer as JSON
             const submitPayload = {
-                interviewSessionId: parseInt(sessionId, 10),
+                sessionId: sessionId,
                 questionId: currentQuestionId || questionNumber, // Use the actual DB Question ID, fallback just in case
                 answerText: "",
                 audioPath: audioPath,
@@ -313,7 +376,7 @@ const InterviewRoom = () => {
                 if (nextQ) {
                     setCurrentQuestion(nextQ.text);
                     setCurrentQuestionId(nextQ.id); // Save the *new* Question ID
-                    setQuestionNumber(prev => prev + 1);
+                    setQuestionNumber(nextQ.displayNumber || (parseInt(questionNumber) + 1).toString());
                     setRecordingState('idle');
                     setAudioBlob(null);
                     setUploadedFile(null);
@@ -322,6 +385,10 @@ const InterviewRoom = () => {
                     if (nextQ.audioUrl) {
                         setCurrentAudioUrl(nextQ.audioUrl);
                     }
+
+                    // Visual Enhancements
+                    setCurrentImageUrl(nextQ.imageUrl || null);
+                    setCurrentCodeSnippet(nextQ.codeSnippet || null);
                 }
             }
         } catch (error) {
@@ -334,28 +401,84 @@ const InterviewRoom = () => {
         navigate(`/dashboard`);
     };
 
+    const handleJumpToQuestion = (targetNum) => {
+        // Interrupt current speech
+        if (simliAgentRef.current) {
+            simliAgentRef.current.interrupt();
+        }
+        if (fallbackAudioRef.current) {
+            fallbackAudioRef.current.pause();
+            fallbackAudioRef.current.currentTime = 0;
+        }
+        setIsAvatarSpeaking(false);
+        setIsQuestionStarted(false);
+
+        // Reset recording state
+        setRecordingState('idle');
+        setAudioBlob(null);
+        setUploadedFile(null);
+        setTimeLeft(120);
+
+        // Fetch new question
+        fetchQuestion(targetNum);
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-[#1A1A2E] via-[#252540] to-[#1A1A2E] flex flex-col relative overflow-hidden">
 
-            {/* Progress Bar */}
-            <div className="flex-shrink-0 px-6 pt-6 flex items-center justify-between z-10">
-                <div className="flex-1 max-w-md mx-auto">
-                    <div className="flex justify-between text-sm text-gray-400 mb-2">
-                        <span>Soru {questionNumber}/{totalQuestions}</span>
-                        <span>{Math.round((questionNumber / totalQuestions) * 100)}%</span>
+            {/* Progress Bar & Editor Mode */}
+            <div className="flex-shrink-0 px-6 pt-6 flex flex-col gap-4 z-10">
+                <div className="flex items-center justify-between">
+                    <div className="flex-1 max-w-md mx-auto">
+                        <div className="flex justify-between text-sm text-gray-400 mb-2">
+                            <span>Soru {questionNumber}/{totalQuestions}{String(questionNumber).includes('.') ? ' (Ek Soru)' : ''}</span>
+                            <span>{Math.min(100, Math.round((parseInt(questionNumber) / totalQuestions) * 100))}%</span>
+                        </div>
+                        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                            <div
+                                className="h-full bg-gradient-to-r from-[#A8E6CF] to-[#DCD6F7] transition-all duration-500"
+                                style={{ width: `${Math.min(100, (parseInt(questionNumber) / totalQuestions) * 100)}%` }}
+                            />
+                        </div>
                     </div>
-                    <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                        <div
-                            className="h-full bg-gradient-to-r from-[#A8E6CF] to-[#DCD6F7] transition-all duration-500"
-                            style={{ width: `${(questionNumber / totalQuestions) * 100}%` }}
-                        />
+
+                    <div className="flex items-center gap-4 ml-4">
+                        {/* Editor Mode Switch */}
+                        <div className="flex items-center gap-3 bg-white/5 px-3 py-1.5 rounded-xl border border-white/10">
+                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Editör Modu</span>
+                            <button
+                                onClick={() => setIsDeveloperMode(!isDeveloperMode)}
+                                className={`relative w-10 h-5 rounded-full transition-colors duration-300 ${isDeveloperMode ? 'bg-[#A8E6CF]' : 'bg-white/10'}`}
+                            >
+                                <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform duration-300 ${isDeveloperMode ? 'translate-x-5' : ''}`} />
+                            </button>
+                        </div>
+
+                        <Button variant="danger" size="sm" onClick={endInterview} className="bg-orange-500 hover:bg-orange-600 border-none">
+                            <X size={16} />
+                            Kaydet ve Çık
+                        </Button>
                     </div>
                 </div>
-                <div className="ml-4">
-                    <Button variant="danger" size="sm" onClick={endInterview} className="bg-orange-500 hover:bg-orange-600 border-none">
-                        <X size={16} />
-                        Kaydet ve Çık
-                    </Button>
+
+                {/* Question Navigator (Squares) */}
+                <div className="flex justify-center gap-2">
+                    {Array.from({ length: totalQuestions }, (_, i) => i + 1).map((num) => (
+                        <button
+                            key={num}
+                            disabled={!isDeveloperMode}
+                            onClick={() => handleJumpToQuestion(num)}
+                            className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold transition-all duration-300 border-2
+                                ${parseInt(questionNumber) === num
+                                    ? 'bg-[#A8E6CF] border-[#A8E6CF] text-[#1A1A2E] shadow-[0_0_15px_rgba(168,230,207,0.5)] scale-110'
+                                    : isDeveloperMode
+                                        ? 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:border-[#A8E6CF]/50'
+                                        : 'bg-white/5 border-transparent text-gray-600 cursor-not-allowed opacity-50'
+                                }`}
+                        >
+                            {num}
+                        </button>
+                    ))}
                 </div>
             </div>
 
@@ -398,8 +521,36 @@ const InterviewRoom = () => {
                             )}
                         </div>
                         <p className="text-xl text-gray-200 leading-relaxed">
-                            <Typewriter text={currentQuestion || 'Soru yükleniyor...'} />
+                            {/* Pro-tip: For question 1, wait for isQuestionStarted (Avatar or Fallback) */}
+                            {isQuestionStarted ? (
+                                <Typewriter text={currentQuestion || 'Soru yükleniyor...'} />
+                            ) : (
+                                <span className="opacity-50 italic">Mülakatçı hazırlanıyor...</span>
+                            )}
                         </p>
+
+                        {/* Visual Question Rendering */}
+                        {currentImageUrl && (
+                            <div className="mt-4 rounded-xl overflow-hidden border border-white/10 bg-black/20 p-2">
+                                <img src={currentImageUrl} alt="Visual Scenario" className="w-full max-h-64 object-contain rounded-lg" />
+                            </div>
+                        )}
+                        {currentCodeSnippet && (
+                            <div className="mt-6 rounded-xl overflow-hidden border border-[#A8E6CF]/30 bg-black/40 shadow-inner">
+                                <div className="bg-white/5 px-4 py-2 border-b border-white/10 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 rounded-full bg-red-500/50"></div>
+                                        <div className="w-3 h-3 rounded-full bg-yellow-500/50"></div>
+                                        <div className="w-3 h-3 rounded-full bg-green-500/50"></div>
+                                        <span className="text-xs font-medium text-gray-400 ml-2 font-mono">Referans Kod</span>
+                                    </div>
+                                    <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">C# / Snippet</span>
+                                </div>
+                                <div className="p-5 font-mono text-sm text-[#A8E6CF] whitespace-pre-wrap overflow-x-auto leading-relaxed max-h-[400px]">
+                                    <code>{currentCodeSnippet}</code>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="mb-4">

@@ -185,9 +185,11 @@ const FeedbackReport = () => {
                                     onClick={() => toggleQuestion(index)}
                                     className="w-full p-4 bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-between"
                                 >
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-[#A8E6CF] font-bold">#{index + 1}</span>
-                                        <span className="text-white font-medium">{qa.question}</span>
+                                    <div className="flex items-center gap-3 overflow-hidden">
+                                        <span className="text-[#A8E6CF] font-bold flex-shrink-0">#{index + 1}</span>
+                                        <span className="text-white font-medium truncate">
+                                            {qa.question?.split('\n')[0].replace(/[#*]/g, '').trim()}
+                                        </span>
                                     </div>
                                     {expandedQuestions.includes(index) ? (
                                         <ChevronUp className="text-gray-400" size={20} />
@@ -199,6 +201,24 @@ const FeedbackReport = () => {
                                 {expandedQuestions.includes(index) && (
                                     <div className="p-6 space-y-4">
                                         <div>
+                                            <h4 className="text-sm font-semibold text-gray-400 mb-2">Soru Detayı:</h4>
+                                            <div className="text-white bg-white/5 p-4 rounded-xl leading-relaxed">
+                                                <MarkdownContent text={qa.question} />
+                                            </div>
+                                            {qa.codeSnippet && (
+                                                <div className="mt-4 rounded-xl overflow-hidden border border-[#A8E6CF]/30 bg-black/40 shadow-inner">
+                                                    <div className="bg-white/5 px-4 py-2 border-b border-white/10 flex items-center justify-between font-mono text-[10px] text-gray-500 uppercase tracking-widest font-bold">
+                                                        <span>Referans Kod</span>
+                                                        <span>C# / Snippet</span>
+                                                    </div>
+                                                    <div className="p-4 font-mono text-sm text-[#A8E6CF] whitespace-pre-wrap overflow-x-auto leading-relaxed max-h-[300px]">
+                                                        <code>{qa.codeSnippet}</code>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div>
                                             <h4 className="text-sm font-semibold text-gray-400 mb-2">Senin Cevabın:</h4>
                                             <p className="text-white bg-white/5 p-4 rounded-xl">
                                                 {qa.userAnswer}
@@ -207,9 +227,9 @@ const FeedbackReport = () => {
 
                                         <div>
                                             <h4 className="text-sm font-semibold text-gray-400 mb-2">AI Değerlendirmesi:</h4>
-                                            <p className="text-gray-300 bg-white/5 p-4 rounded-xl leading-relaxed whitespace-pre-wrap">
-                                                {qa.aiFeedback}
-                                            </p>
+                                            <div className="text-gray-300 bg-white/5 p-4 rounded-xl leading-relaxed">
+                                                <MarkdownContent text={qa.aiFeedback} />
+                                            </div>
                                         </div>
 
                                         {qa.videoFeedback && (
@@ -296,6 +316,41 @@ const FeedbackReport = () => {
                 </div>
             </div>
         </div>
+    );
+};
+
+// Helper to render text with embedded markdown code blocks
+const MarkdownContent = ({ text }) => {
+    if (!text) return null;
+
+    // Detect markdown code blocks: ```[lang] code ```
+    const parts = text.split(/(```[\s\S]*?```)/g);
+
+    return (
+        <span className="space-y-3 block">
+            {parts.map((part, i) => {
+                if (part.startsWith('```')) {
+                    const code = part.replace(/```[a-z]*\n?/i, '').replace(/```$/, '').trim();
+                    const langMatch = part.match(/```([a-z]+)/i);
+                    const lang = langMatch ? langMatch[1].toUpperCase() : 'CODE';
+
+                    return (
+                        <div key={i} className="my-3 rounded-lg overflow-hidden border border-white/10 bg-black/40">
+                            <div className="bg-white/5 px-3 py-1.5 border-b border-white/5 flex justify-between">
+                                <span className="text-[10px] text-gray-500 font-bold tracking-widest">{lang}</span>
+                            </div>
+                            <pre className="p-4 font-mono text-xs text-[#A8E6CF] overflow-x-auto">
+                                <code>{code}</code>
+                            </pre>
+                        </div>
+                    );
+                }
+
+                // Handle bold text, but keeping it simple for now
+                // Pure text with potential line breaks
+                return <span key={i} className="whitespace-pre-wrap">{part}</span>;
+            })}
+        </span>
     );
 };
 

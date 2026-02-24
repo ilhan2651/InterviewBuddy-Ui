@@ -52,8 +52,10 @@ export const logout = () => {
 export const startInterview = (data) =>
     apiClient.post('/interview/start', data);
 
-export const getCurrentQuestion = (sessionId) =>
-    apiClient.get(`/interview/${sessionId}/current-question`);
+export const getCurrentQuestion = (sessionId, targetQuestionNumber = null) =>
+    apiClient.get(`/interview/${sessionId}/current-question`, {
+        params: targetQuestionNumber ? { targetQuestionNumber } : {}
+    });
 
 export const uploadAudio = (formData) =>
     apiClient.post('/interview/upload-audio', formData, {
@@ -76,6 +78,11 @@ export const getRecentInterviews = () =>
 export const getUncompletedInterviews = () =>
     apiClient.get('/user/uncompleted-interviews');
 
+export const getQuotaStatus = () =>
+    apiClient.get('/user/quota-status');
+
+export const updateApiKeys = (data) =>
+    apiClient.post('/user/keys', data);
 
 // === SIMLI ENDPOINTS ===
 export const getSimliConfig = async () => {
