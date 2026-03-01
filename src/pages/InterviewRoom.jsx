@@ -114,6 +114,7 @@ const InterviewRoom = () => {
     };
 
     const fetchQuestion = async (targetNum = null) => {
+        setIsQuestionStarted(false); // Reset sequence IMMEDIATELY
         try {
             const response = await getCurrentQuestion(sessionId, targetNum);
             setCurrentQuestion(response.data.questionText);
@@ -412,6 +413,7 @@ const InterviewRoom = () => {
         }
         setIsAvatarSpeaking(false);
         setIsQuestionStarted(false);
+        lastPlayedAudioUrlRef.current = null; // Force audio effect to trigger for the new question
 
         // Reset recording state
         setRecordingState('idle');
