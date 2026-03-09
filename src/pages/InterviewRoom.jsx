@@ -46,8 +46,9 @@ const InterviewRoom = () => {
     // Fallback: Play audio directly through browser if Simli is not available
     const playAudioFallback = (audioUrl) => {
         if (!audioUrl) return;
-        const fullUrl = audioUrl.startsWith('http') ? audioUrl : `http://localhost:5219/${audioUrl.replace(/^\//, '')}`;
-
+        const fullUrl = audioUrl.startsWith('http')
+            ? audioUrl
+            : `${window.location.origin}/${audioUrl.replace(/^\//, '')}`;
         if (fallbackAudioRef.current) {
             fallbackAudioRef.current.pause();
         }
@@ -137,8 +138,9 @@ const InterviewRoom = () => {
         if (!audioUrl) return;
         setIsAvatarSpeaking(true);
         try {
-            const fullUrl = audioUrl.startsWith('http') ? audioUrl : `http://localhost:5219/${audioUrl.replace(/^\//, '')}`;
-
+            const fullUrl = audioUrl.startsWith('http')
+                ? audioUrl
+                : `${window.location.origin}/${audioUrl.replace(/^\//, '')}`;
             const response = await fetch(fullUrl);
             const arrayBuffer = await response.arrayBuffer();
 
