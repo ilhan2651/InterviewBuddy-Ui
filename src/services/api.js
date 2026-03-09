@@ -35,4 +35,61 @@ apiClient.interceptors.response.use(
     }
 );
 
+//
+// AUTH ENDPOINTS
+//
+
+export const login = (email, password) =>
+    apiClient.post("/Auth/login", { email, password });
+
+export const register = (userData) =>
+    apiClient.post("/Auth/register", userData);
+
+export const logout = () => {
+    localStorage.removeItem("token");
+    window.location.href = "/login";
+};
+
+//
+// INTERVIEW ENDPOINTS
+//
+
+export const startInterview = (data) =>
+    apiClient.post("/interview/start", data);
+
+export const getCurrentQuestion = (sessionId, targetQuestionNumber = null) =>
+    apiClient.get(`/interview/${sessionId}/current-question`, {
+        params: targetQuestionNumber ? { targetQuestionNumber } : {},
+    });
+
+export const uploadAudio = (formData) =>
+    apiClient.post("/interview/upload-audio", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+    });
+
+export const submitAnswer = (data) =>
+    apiClient.post("/interview/submit-answer", data);
+
+export const getInterviewReport = (sessionId) =>
+    apiClient.get(`/interview/${sessionId}/report`);
+
+//
+// USER
+//
+
+export const getUserStats = () =>
+    apiClient.get("/user/stats");
+
+export const getRecentInterviews = () =>
+    apiClient.get("/user/recent-interviews");
+
+export const getUncompletedInterviews = () =>
+    apiClient.get("/user/uncompleted-interviews");
+
+export const getQuotaStatus = () =>
+    apiClient.get("/user/quota-status");
+
+export const updateApiKeys = (data) =>
+    apiClient.post("/user/keys", data);
+
 export default apiClient;
