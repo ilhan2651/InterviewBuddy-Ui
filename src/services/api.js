@@ -73,9 +73,13 @@ export const submitAnswer = (data) =>
 export const getInterviewReport = (sessionId) =>
     apiClient.get(`/interview/${sessionId}/report`);
 
-//
-// USER
-//
+
+export const getSimliConfig = async () => {
+    const response = await apiClient.get("/Simli/config");
+    return response.data;
+};
+
+
 
 export const getUserStats = () =>
     apiClient.get("/user/stats");
