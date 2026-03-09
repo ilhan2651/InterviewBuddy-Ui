@@ -2,9 +2,11 @@
 import axios from 'axios';
 
 // Base API URL - Backend'in çalıştığı adres
-const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5219/api';
-
-// Axios instance with authentication
+const API_URL =
+    import.meta.env.VITE_API_BASE_URL ||
+    (window.location.hostname === "localhost"
+        ? "http://localhost:5219/api"
+        : "/api");// Axios instance with authentication
 const apiClient = axios.create({
     baseURL: API_URL,
     headers: {
