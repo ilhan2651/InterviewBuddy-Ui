@@ -11,12 +11,14 @@ export default defineConfig({
   server: {
     proxy: {
       '/audio': {
-        target: 'http://localhost:5219',
+        target: 'https://localhost:7030',
         changeOrigin: true,
+        secure: false,
       },
       '/api': {
-        target: 'http://localhost:5219',
+        target: 'https://localhost:7030',
         changeOrigin: true,
+        secure: false,
       }
     }
   }

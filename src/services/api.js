@@ -18,6 +18,12 @@ apiClient.interceptors.request.use(
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
+        console.info("API Request", {
+            method: config.method,
+            url: `${config.baseURL}${config.url}`,
+            hasToken: Boolean(token),
+            tokenPreview: token ? `${token.slice(0, 16)}...` : null
+        });
         return config;
     },
     (error) => Promise.reject(error)
@@ -25,8 +31,20 @@ apiClient.interceptors.request.use(
 
 // Response interceptor - 401 yakalama
 apiClient.interceptors.response.use(
-    (response) => response,
+    (response) => {
+        console.info("API Response", {
+            url: `${response.config?.baseURL}${response.config?.url}`,
+            status: response.status
+        });
+        return response;
+    },
     (error) => {
+        console.error("API Error Response", {
+            url: `${error.config?.baseURL}${error.config?.url}`,
+            status: error.response?.status,
+            data: error.response?.data,
+            hasToken: Boolean(localStorage.getItem("token"))
+        });
         if (error.response?.status === 401) {
             localStorage.removeItem("token");
             window.location.href = "/login";

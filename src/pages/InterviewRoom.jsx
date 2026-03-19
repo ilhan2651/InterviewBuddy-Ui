@@ -44,7 +44,7 @@ const InterviewRoom = () => {
     }, []);
 
     // Fallback: Play audio directly through browser if Simli is not available
-    const playAudioFallback = (audioUrl) => {
+    const playAudioFallback = (audioUrl, diagnostics = {}) => {
         if (!audioUrl) return;
         const fullUrl = audioUrl.startsWith('http')
             ? audioUrl
@@ -58,8 +58,11 @@ const InterviewRoom = () => {
 
         audio.onplay = () => setIsAvatarSpeaking(true);
         audio.onended = () => setIsAvatarSpeaking(false);
-        audio.onerror = () => setIsAvatarSpeaking(false);
-        audio.play().catch(err => console.error("Fallback audio play error:", err));
+        audio.onerror = (event) => {
+            console.error('Fallback audio element error', { fullUrl, diagnostics, event });
+            setIsAvatarSpeaking(false);
+        };
+        audio.play().catch(err => console.error('Fallback audio play error:', { fullUrl, diagnostics, err }));
         setIsQuestionStarted(true);
     };
 
@@ -137,19 +140,60 @@ const InterviewRoom = () => {
     const playAIVoice = async (audioUrl) => {
         if (!audioUrl) return;
         setIsAvatarSpeaking(true);
-        try {
-            const fullUrl = audioUrl.startsWith('http')
-                ? audioUrl
-                : `${window.location.origin}/${audioUrl.replace(/^\//, '')}`;
-            const response = await fetch(fullUrl);
-            const arrayBuffer = await response.arrayBuffer();
 
-            // Simli expects 16kHz PCM16. Force decode at 16000Hz.
+        const fullUrl = audioUrl.startsWith('http')
+            ? audioUrl
+            : `${window.location.origin}/${audioUrl.replace(/^\//, '')}`;
+
+        let diagnostics = {
+            fullUrl,
+            status: null,
+            contentType: null,
+            contentLength: null,
+            byteLength: null
+        };
+
+        try {
+            const response = await fetch(fullUrl, { cache: 'no-store' });
+
+            diagnostics = {
+                ...diagnostics,
+                status: response.status,
+                contentType: response.headers.get('content-type'),
+                contentLength: response.headers.get('content-length')
+            };
+
+            if (!response.ok) {
+                console.error('Audio fetch failed', diagnostics);
+                setIsAvatarSpeaking(false);
+                playAudioFallback(audioUrl, diagnostics);
+                return;
+            }
+
+            if (!diagnostics.contentType || !diagnostics.contentType.includes('audio')) {
+                console.error('Invalid audio response', diagnostics);
+                setIsAvatarSpeaking(false);
+                playAudioFallback(audioUrl, diagnostics);
+                return;
+            }
+
+            const arrayBuffer = await response.arrayBuffer();
+            diagnostics = {
+                ...diagnostics,
+                byteLength: arrayBuffer.byteLength
+            };
+
+            if (!arrayBuffer.byteLength) {
+                console.error('Audio payload is empty', diagnostics);
+                setIsAvatarSpeaking(false);
+                playAudioFallback(audioUrl, diagnostics);
+                return;
+            }
+
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const originalAudioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-            // OfflineAudioContext for safe downsampling to 16000Hz if needed
-            const offlineCtx = new OfflineAudioContext(1, originalAudioBuffer.duration * 16000, 16000);
+            const offlineCtx = new OfflineAudioContext(1, Math.ceil(originalAudioBuffer.duration * 16000), 16000);
             const source = offlineCtx.createBufferSource();
             source.buffer = originalAudioBuffer;
             source.connect(offlineCtx.destination);
@@ -158,20 +202,20 @@ const InterviewRoom = () => {
             const renderedBuffer = await offlineCtx.startRendering();
             const pcmData = renderedBuffer.getChannelData(0);
 
-            // Convert to PCM16 Little-Endian
             const outBuffer = new Int16Array(pcmData.length);
             for (let i = 0; i < pcmData.length; i++) {
                 let s = Math.max(-1, Math.min(1, pcmData[i]));
                 outBuffer[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
             }
 
-            // Send to Simli as Uint8Array byte stream
             if (simliAgentRef.current) {
+                console.info('Streaming audio to Simli', diagnostics);
                 simliAgentRef.current.playAudio(new Uint8Array(outBuffer.buffer));
             }
         } catch (error) {
-            console.error("Audio play error", error);
+            console.error('Audio play error', { diagnostics, error });
             setIsAvatarSpeaking(false);
+            playAudioFallback(audioUrl, diagnostics);
         }
     };
 
