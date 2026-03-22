@@ -8,6 +8,7 @@ import InterviewSetup from './pages/InterviewSetup';
 import InterviewRoom from './pages/InterviewRoom';
 import FeedbackReport from './pages/FeedbackReport';
 import AdminDashboard from './pages/AdminDashboard';
+import ApiKeysPage from './pages/ApiKeysPage';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
@@ -42,6 +43,14 @@ function App() {
                     element={
                         <ProtectedRoute>
                             <InterviewSetup />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/settings/api-keys"
+                    element={
+                        <ProtectedRoute>
+                            <ApiKeysPage />
                         </ProtectedRoute>
                     }
                 />

@@ -1,15 +1,16 @@
 // src/pages/InterviewRoom.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import SimliAgent from '../components/SimliAgent';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Mic, MicOff, Send, X, Volume2, Pause, Play, Timer, Square, RefreshCcw } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { submitAnswer, getCurrentQuestion, uploadAudio } from '../services/api';
+import { submitAnswer, getCurrentQuestion, uploadAudio, completeInterview } from '../services/api';
 
 const InterviewRoom = () => {
     const { sessionId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const [currentQuestion, setCurrentQuestion] = useState('');
     const [currentImageUrl, setCurrentImageUrl] = useState(null);
     const [currentCodeSnippet, setCurrentCodeSnippet] = useState(null);
@@ -42,6 +43,14 @@ const InterviewRoom = () => {
         fetchQuestion();
         initializeAudioContext();
     }, []);
+
+    const redirectToApiKeysPage = () => {
+        navigate('/settings/api-keys', {
+            state: {
+                returnTo: location.pathname
+            }
+        });
+    };
 
     // Fallback: Play audio directly through browser if Simli is not available
     const playAudioFallback = (audioUrl, diagnostics = {}) => {
@@ -118,6 +127,13 @@ const InterviewRoom = () => {
     };
 
     const fetchQuestion = async (targetNum = null) => {
+        if (fallbackAudioRef.current) {
+            fallbackAudioRef.current.pause();
+            fallbackAudioRef.current.currentTime = 0;
+        }
+        setIsAvatarSpeaking(false);
+        lastPlayedAudioUrlRef.current = null;
+        setCurrentAudioUrl(null);
         setIsQuestionStarted(false); // Reset sequence IMMEDIATELY
         try {
             const response = await getCurrentQuestion(sessionId, targetNum);
@@ -126,9 +142,7 @@ const InterviewRoom = () => {
             setQuestionNumber(response.data.displayNumber || response.data.questionNumber || "1");
             if (response.data.totalQuestions) setTotalQuestions(response.data.totalQuestions);
             setCurrentQuestionId(response.data.id);
-            if (response.data.audioUrl) {
-                setCurrentAudioUrl(response.data.audioUrl);
-            }
+            setCurrentAudioUrl(response.data.audioUrl || null);
             // Visual Enhancements
             setCurrentImageUrl(response.data.imageUrl || null);
             setCurrentCodeSnippet(response.data.codeSnippet || null);
@@ -415,12 +429,24 @@ const InterviewRoom = () => {
             const response = await submitAnswer(submitPayload);
 
             if (response.data.isCompleted) {
+                try {
+                    await completeInterview(sessionId);
+                } catch (completionError) {
+                    console.error('Interview completion failed, continuing to report view', completionError);
+                }
                 navigate(`/interview/report/${sessionId}`);
             } else {
                 // Backend'den gelen yeni soru yapısına göre güncelleme:
                 const nextQ = response.data.nextQuestion;
 
                 if (nextQ) {
+                    if (fallbackAudioRef.current) {
+                        fallbackAudioRef.current.pause();
+                        fallbackAudioRef.current.currentTime = 0;
+                    }
+                    setIsAvatarSpeaking(false);
+                    setIsQuestionStarted(false);
+                    lastPlayedAudioUrlRef.current = null;
                     setCurrentQuestion(nextQ.text);
                     setCurrentQuestionId(nextQ.id); // Save the *new* Question ID
                     setQuestionNumber(nextQ.displayNumber || (parseInt(questionNumber) + 1).toString());
@@ -428,10 +454,7 @@ const InterviewRoom = () => {
                     setAudioBlob(null);
                     setUploadedFile(null);
                     setTimeLeft(120);
-
-                    if (nextQ.audioUrl) {
-                        setCurrentAudioUrl(nextQ.audioUrl);
-                    }
+                    setCurrentAudioUrl(nextQ.audioUrl || null);
 
                     // Visual Enhancements
                     setCurrentImageUrl(nextQ.imageUrl || null);
@@ -533,7 +556,11 @@ const InterviewRoom = () => {
             {/* Avatar - orta alan */}
             <div className="flex-1 flex items-center justify-center p-4 relative">
                 <div className="w-full max-w-lg aspect-square">
-                    <SimliAgent ref={simliAgentRef} onStart={() => setIsSimliReady(true)} />
+                    <SimliAgent
+                        ref={simliAgentRef}
+                        onStart={() => setIsSimliReady(true)}
+                        onQuotaExceeded={redirectToApiKeysPage}
+                    />
                 </div>
 
                 {/* Video Capture UI */}

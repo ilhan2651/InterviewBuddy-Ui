@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef, useCallback } from 'react';
-import { SimliClient, generateSimliSessionToken, generateIceServers, LogLevel } from 'simli-client'; import { getSimliConfig } from '../services/api';
+import { SimliClient, generateSimliSessionToken, LogLevel } from 'simli-client';
+import { getSimliConfig } from '../services/api';
 
-const SimliAgent = forwardRef(({ onStart }, ref) => {
+const SimliAgent = forwardRef(({ onStart, onQuotaExceeded }, ref) => {
     const [status, setStatus] = useState('Initializing');
     const [error, setError] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -87,12 +88,16 @@ const SimliAgent = forwardRef(({ onStart }, ref) => {
             await simliClient.start();
 
         } catch (e) {
+            if (e?.response?.status === 400 && e?.response?.data?.code === 'QUOTA_EXCEEDED') {
+                onQuotaExceeded?.();
+                return;
+            }
             setError(e?.message || String(e));
             setStatus('Failed');
             setIsLoading(false);
             initializedRef.current = false;
         }
-    }, []);
+    }, [onQuotaExceeded, onStart]);
 
     const videoCallbackRef = useCallback((node) => {
         videoRef.current = node;

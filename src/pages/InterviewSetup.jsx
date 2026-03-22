@@ -5,7 +5,6 @@ import { Briefcase, Activity, Mic, Play, CheckCircle, AlertTriangle } from 'luci
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { startInterview, getQuotaStatus } from '../services/api';
-import ApiKeysModal from '../components/ApiKeysModal';
 
 const InterviewSetup = () => {
     const navigate = useNavigate();
@@ -21,8 +20,6 @@ const InterviewSetup = () => {
     const [microphonePermission, setMicrophonePermission] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [showApiModal, setShowApiModal] = useState(false);
-
     useEffect(() => {
         checkMicrophone();
     }, []);
@@ -48,8 +45,12 @@ const InterviewSetup = () => {
             const { hasFreeQuota, hasOwnKeys } = quotaResponse.data;
 
             if (!hasFreeQuota && !hasOwnKeys) {
-                setShowApiModal(true);
                 setIsLoading(false);
+                navigate('/settings/api-keys', {
+                    state: {
+                        returnTo: '/interview/setup'
+                    }
+                });
                 return;
             }
 
@@ -80,12 +81,6 @@ const InterviewSetup = () => {
             setError('Mülakat başlatılamadı. Lütfen tekrar deneyin.');
             setIsLoading(false);
         }
-    };
-
-    const handleApiKeysSaved = () => {
-        setShowApiModal(false);
-        // Automatically start the interview after keys are saved
-        handleStartInterview();
     };
 
     const professions = [
@@ -131,7 +126,12 @@ const InterviewSetup = () => {
         }
     }, [profession]);
 
-    const levels = ['Junior', 'Mid-Level', 'Senior'];
+    const levels = [
+        { id: 'Junior', label: 'Junior' },
+        { id: 'Mid', label: 'Mid-Level' },
+        { id: 'Senior', label: 'Senior' },
+        { id: 'Lead', label: 'Lead' }
+    ];
 
     // Difficulty Mapping (Value sent to BE vs Label)
     const difficulties = [
@@ -252,14 +252,14 @@ const InterviewSetup = () => {
                             <div className="flex gap-3">
                                 {levels.map((l) => (
                                     <button
-                                        key={l}
-                                        onClick={() => setLevel(l)}
-                                        className={`flex-1 p-2.5 rounded-xl text-sm font-medium transition-all duration-300 border ${level === l
+                                        key={l.id}
+                                        onClick={() => setLevel(l.id)}
+                                        className={`flex-1 p-2.5 rounded-xl text-sm font-medium transition-all duration-300 border ${level === l.id
                                             ? 'bg-[#DCD6F7]/20 border-[#DCD6F7] text-white shadow-[0_0_15px_rgba(220,214,247,0.3)]'
                                             : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:border-white/20'
                                             }`}
                                     >
-                                        {l}
+                                        {l.label}
                                     </button>
                                 ))}
                             </div>
@@ -341,7 +341,7 @@ const InterviewSetup = () => {
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-gray-400">Seviye:</span>
-                                    <span className="text-[#DCD6F7] font-medium">{level}</span>
+                                    <span className="text-[#DCD6F7] font-medium">{levels.find(l => l.id === level)?.label ?? level}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-gray-400">Zorluk:</span>
@@ -388,13 +388,6 @@ const InterviewSetup = () => {
                     </div>
                 </div>
             </Card>
-
-            {/* API Keys Modal */}
-            <ApiKeysModal
-                isOpen={showApiModal}
-                onClose={() => setShowApiModal(false)}
-                onSuccess={handleApiKeysSaved}
-            />
         </div>
     );
 };

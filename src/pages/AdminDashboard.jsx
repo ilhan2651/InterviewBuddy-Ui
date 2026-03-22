@@ -200,33 +200,6 @@ const AdminDashboard = () => {
                                                 {q.answer.aiAnalysis}
                                             </div>
 
-                                            {q.answer.videoFeedback && (
-                                                <div className="mt-2">
-                                                    <div className="flex justify-between items-center mb-1">
-                                                        <span className="text-xs text-blue-400">Kamera / Ortam:</span>
-                                                        <span className={`text-xs font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-400`}>
-                                                            {q.answer.videoScore}/100
-                                                        </span>
-                                                    </div>
-                                                    <div className="text-xs text-gray-300 bg-[#252540] p-2 rounded whitespace-pre-wrap border border-blue-500/20">
-                                                        {q.answer.videoFeedback}
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {q.answer.audioFeedback && (
-                                                <div className="mt-2">
-                                                    <div className="flex justify-between items-center mb-1">
-                                                        <span className="text-xs text-purple-400">Ses Tonu / Diksiyon:</span>
-                                                        <span className={`text-xs font-bold px-2 py-0.5 rounded bg-purple-500/20 text-purple-400`}>
-                                                            {q.answer.audioScore}/100
-                                                        </span>
-                                                    </div>
-                                                    <div className="text-xs text-gray-300 bg-[#252540] p-2 rounded whitespace-pre-wrap border border-purple-500/20">
-                                                        {q.answer.audioFeedback}
-                                                    </div>
-                                                </div>
-                                            )}
                                         </div>
 
                                         <button

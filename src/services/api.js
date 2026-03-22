@@ -88,6 +88,9 @@ export const uploadAudio = (formData) =>
 export const submitAnswer = (data) =>
     apiClient.post("/interview/submit-answer", data);
 
+export const completeInterview = (sessionId) =>
+    apiClient.post("/interview/complete", { sessionId });
+
 export const getInterviewReport = (sessionId) =>
     apiClient.get(`/interview/${sessionId}/report`);
 

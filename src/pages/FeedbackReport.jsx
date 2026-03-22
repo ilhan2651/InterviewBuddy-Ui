@@ -1,4 +1,3 @@
-// src/pages/FeedbackReport.jsx
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Trophy, TrendingUp, MessageCircle, Zap, ChevronDown, ChevronUp, Home } from 'lucide-react';
@@ -24,7 +23,7 @@ const FeedbackReport = () => {
             setReport(response.data);
             animateScore(response.data.overallScore);
         } catch (error) {
-            console.error('Rapor yüklenemedi', error);
+            console.error('Rapor yuklenemedi', error);
         }
     };
 
@@ -43,9 +42,9 @@ const FeedbackReport = () => {
     };
 
     const toggleQuestion = (index) => {
-        setExpandedQuestions(prev =>
+        setExpandedQuestions((prev) =>
             prev.includes(index)
-                ? prev.filter(i => i !== index)
+                ? prev.filter((i) => i !== index)
                 : [...prev, index]
         );
     };
@@ -57,11 +56,11 @@ const FeedbackReport = () => {
     };
 
     const getGrade = (score) => {
-        if (score >= 90) return { grade: 'A+', emoji: '🏆', text: 'Mükemmel!' };
-        if (score >= 80) return { grade: 'A', emoji: '🌟', text: 'Harika!' };
-        if (score >= 70) return { grade: 'B', emoji: '👍', text: 'İyi!' };
-        if (score >= 60) return { grade: 'C', emoji: '👌', text: 'Orta' };
-        return { grade: 'D', emoji: '📚', text: 'Gelişmeli' };
+        if (score >= 90) return { grade: 'A+', emoji: 'Trophy', text: 'Mukemmel!' };
+        if (score >= 80) return { grade: 'A', emoji: 'Star', text: 'Harika!' };
+        if (score >= 70) return { grade: 'B', emoji: 'Thumbs Up', text: 'Iyi!' };
+        if (score >= 60) return { grade: 'C', emoji: 'Okay', text: 'Orta' };
+        return { grade: 'D', emoji: 'Book', text: 'Gelismeli' };
     };
 
     if (!report) {
@@ -69,26 +68,26 @@ const FeedbackReport = () => {
             <div className="min-h-screen bg-gradient-to-br from-[#1A1A2E] via-[#252540] to-[#1A1A2E] flex items-center justify-center">
                 <div className="text-center">
                     <div className="w-16 h-16 border-4 border-[#A8E6CF] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-gray-400">Rapor hazırlanıyor...</p>
+                    <p className="text-gray-400">Rapor hazirlaniyor...</p>
                 </div>
             </div>
         );
     }
 
     const scoreInfo = getGrade(report.overallScore);
+    const strengths = report.strengths || [];
+    const improvementAreas = report.improvementAreas || report.improvmentArea || [];
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-[#1A1A2E] via-[#252540] to-[#1A1A2E] p-6">
             <div className="max-w-5xl mx-auto">
-                {/* Header */}
                 <div className="text-center mb-8">
                     <h1 className="text-4xl font-bold text-white mb-2">
-                        Mülakat Sonuçları {scoreInfo.emoji}
+                        Mulakat Sonuclari
                     </h1>
-                    <p className="text-gray-400">Performansını incele ve gelişim alanlarını keşfet</p>
+                    <p className="text-gray-400">Performansini incele ve gelisim alanlarini kesfet</p>
                 </div>
 
-                {/* Overall Score Card */}
                 <Card glass className="mb-8 text-center">
                     <div className="mb-6">
                         <div className="inline-block">
@@ -134,11 +133,10 @@ const FeedbackReport = () => {
                         {scoreInfo.grade} - {scoreInfo.text}
                     </h2>
                     <p className="text-gray-400">
-                        Tebrikler! Mülakatı başarıyla tamamladın
+                        Tebrikler! Mulakati basariyla tamamladin
                     </p>
                 </Card>
 
-                {/* Category Scores */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     <Card glass>
                         <div className="flex items-center gap-3 mb-4">
@@ -155,7 +153,7 @@ const FeedbackReport = () => {
                             <div className="w-12 h-12 rounded-xl bg-[#DCD6F7]/20 flex items-center justify-center">
                                 <MessageCircle className="text-[#DCD6F7]" size={24} />
                             </div>
-                            <h3 className="font-semibold text-white">İletişim</h3>
+                            <h3 className="font-semibold text-white">Iletisim</h3>
                         </div>
                         <Progress value={report.communicationScore} color="secondary" />
                     </Card>
@@ -165,17 +163,42 @@ const FeedbackReport = () => {
                             <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
                                 <TrendingUp className="text-green-400" size={24} />
                             </div>
-                            <h3 className="font-semibold text-white">Özgüven</h3>
+                            <h3 className="font-semibold text-white">Ozguven</h3>
                         </div>
                         <Progress value={report.confidenceScore} color="success" />
                     </Card>
                 </div>
 
-                {/* Questions & Answers Accordion */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <Card glass>
+                        <h2 className="text-2xl font-bold text-white mb-4">Guclu Yonler</h2>
+                        <ul className="text-gray-300 space-y-2">
+                            {strengths.map((item, idx) => (
+                                <li key={idx} className="flex items-start gap-2">
+                                    <span className="text-[#A8E6CF] mt-1">•</span>
+                                    <span>{item}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </Card>
+
+                    <Card glass>
+                        <h2 className="text-2xl font-bold text-white mb-4">Gelisim Alanlari</h2>
+                        <ul className="text-gray-300 space-y-2">
+                            {improvementAreas.map((item, idx) => (
+                                <li key={idx} className="flex items-start gap-2">
+                                    <span className="text-[#DCD6F7] mt-1">•</span>
+                                    <span>{item}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </Card>
+                </div>
+
                 <Card glass className="mb-8">
                     <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
                         <Trophy className="text-[#A8E6CF]" size={28} />
-                        Soru & Cevap Detayları
+                        Soru ve Cevap Detaylari
                     </h2>
 
                     <div className="space-y-4">
@@ -201,7 +224,7 @@ const FeedbackReport = () => {
                                 {expandedQuestions.includes(index) && (
                                     <div className="p-6 space-y-4">
                                         <div>
-                                            <h4 className="text-sm font-semibold text-gray-400 mb-2">Soru Detayı:</h4>
+                                            <h4 className="text-sm font-semibold text-gray-400 mb-2">Soru Detayi:</h4>
                                             <div className="text-white bg-white/5 p-4 rounded-xl leading-relaxed">
                                                 <MarkdownContent text={qa.question} />
                                             </div>
@@ -219,66 +242,38 @@ const FeedbackReport = () => {
                                         </div>
 
                                         <div>
-                                            <h4 className="text-sm font-semibold text-gray-400 mb-2">Senin Cevabın:</h4>
+                                            <h4 className="text-sm font-semibold text-gray-400 mb-2">Senin Cevabin:</h4>
                                             <p className="text-white bg-white/5 p-4 rounded-xl">
                                                 {qa.userAnswer}
                                             </p>
                                         </div>
 
                                         <div>
-                                            <h4 className="text-sm font-semibold text-gray-400 mb-2">AI Değerlendirmesi:</h4>
+                                            <h4 className="text-sm font-semibold text-gray-400 mb-2">AI Degerlendirmesi:</h4>
                                             <div className="text-gray-300 bg-white/5 p-4 rounded-xl leading-relaxed">
                                                 <MarkdownContent text={qa.aiFeedback} />
                                             </div>
                                         </div>
 
-                                        {qa.videoFeedback && (
+                                        {qa.idealAnswerSummary && (
                                             <div>
                                                 <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-400 mb-2">
-                                                    <span className="w-2 h-2 rounded-full bg-blue-400"></span>
-                                                    Kamera ve Ortam Değerlendirmesi:
+                                                    <span className="w-2 h-2 rounded-full bg-[#A8E6CF]"></span>
+                                                    Daha Guclu Cevap Ozeti:
                                                 </h4>
                                                 <p className="text-gray-300 bg-white/5 p-4 rounded-xl leading-relaxed whitespace-pre-wrap">
-                                                    {qa.videoFeedback}
-                                                </p>
-                                            </div>
-                                        )}
-
-                                        {qa.audioFeedback && (
-                                            <div>
-                                                <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-400 mb-2">
-                                                    <span className="w-2 h-2 rounded-full bg-purple-400"></span>
-                                                    Ses Tonu ve Diksiyon:
-                                                </h4>
-                                                <p className="text-gray-300 bg-white/5 p-4 rounded-xl leading-relaxed whitespace-pre-wrap">
-                                                    {qa.audioFeedback}
+                                                    {qa.idealAnswerSummary}
                                                 </p>
                                             </div>
                                         )}
 
                                         <div className="flex items-center flex-wrap gap-4 mt-2">
                                             <div className="flex items-center gap-2">
-                                                <span className="text-sm text-gray-400">Soru Puanı:</span>
+                                                <span className="text-sm text-gray-400">Soru Puani:</span>
                                                 <span className={`text-lg font-bold ${getScoreColor(qa.score)}`}>
                                                     {qa.score}/100
                                                 </span>
                                             </div>
-                                            {qa.videoScore != null && (
-                                                <div className="flex items-center gap-2 bg-blue-500/10 px-2 py-1 rounded">
-                                                    <span className="text-xs text-blue-400">Kamera:</span>
-                                                    <span className={`text-sm font-bold ${getScoreColor(qa.videoScore)}`}>
-                                                        {qa.videoScore}
-                                                    </span>
-                                                </div>
-                                            )}
-                                            {qa.audioScore != null && (
-                                                <div className="flex items-center gap-2 bg-purple-500/10 px-2 py-1 rounded">
-                                                    <span className="text-xs text-purple-400">Ses/Diksiyon:</span>
-                                                    <span className={`text-sm font-bold ${getScoreColor(qa.audioScore)}`}>
-                                                        {qa.audioScore}
-                                                    </span>
-                                                </div>
-                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -287,10 +282,9 @@ const FeedbackReport = () => {
                     </div>
                 </Card>
 
-                {/* AI Recommendations */}
                 <Card glass className="mb-8">
                     <h2 className="text-2xl font-bold text-white mb-4">
-                        🎯 Gelişim Önerileri
+                        Gelisim Onerileri
                     </h2>
                     <div className="prose prose-invert max-w-none">
                         <ul className="text-gray-300 space-y-2">
@@ -304,14 +298,13 @@ const FeedbackReport = () => {
                     </div>
                 </Card>
 
-                {/* Action Buttons */}
                 <div className="flex justify-center gap-4">
                     <Button variant="outline" size="lg" onClick={() => navigate('/dashboard')}>
                         <Home size={20} />
                         Ana Sayfa
                     </Button>
                     <Button variant="primary" size="lg" onClick={() => navigate('/interview/setup')}>
-                        Yeni Mülakat Başlat
+                        Yeni Mulakat Baslat
                     </Button>
                 </div>
             </div>
@@ -319,11 +312,9 @@ const FeedbackReport = () => {
     );
 };
 
-// Helper to render text with embedded markdown code blocks
 const MarkdownContent = ({ text }) => {
     if (!text) return null;
 
-    // Detect markdown code blocks: ```[lang] code ```
     const parts = text.split(/(```[\s\S]*?```)/g);
 
     return (
@@ -346,8 +337,6 @@ const MarkdownContent = ({ text }) => {
                     );
                 }
 
-                // Handle bold text, but keeping it simple for now
-                // Pure text with potential line breaks
                 return <span key={i} className="whitespace-pre-wrap">{part}</span>;
             })}
         </span>
