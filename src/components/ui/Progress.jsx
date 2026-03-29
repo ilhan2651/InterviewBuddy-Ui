@@ -12,27 +12,27 @@ const Progress = ({
     const percentage = Math.round((value / max) * 100);
 
     const colors = {
-        primary: 'bg-gradient-to-r from-[#A8E6CF] to-[#8FD9B6]',
-        secondary: 'bg-gradient-to-r from-[#DCD6F7] to-[#C8BFE7]',
-        success: 'bg-gradient-to-r from-green-400 to-green-500',
-        warning: 'bg-gradient-to-r from-orange-400 to-orange-500',
-        danger: 'bg-gradient-to-r from-red-400 to-red-500'
+        primary: 'bg-primary',
+        secondary: 'bg-secondary',
+        success: 'bg-green-500',
+        warning: 'bg-orange-500',
+        danger: 'bg-red-500'
     };
 
     return (
         <div className={`w-full ${className}`}>
             {(label || showPercentage) && (
                 <div className="flex justify-between items-center mb-2">
-                    {label && <span className="text-sm font-medium text-gray-300">{label}</span>}
-                    {showPercentage && <span className="text-sm font-semibold text-white">{percentage}%</span>}
+                    {label && <span className="text-sm font-semibold text-text-main">{label}</span>}
+                    {showPercentage && <span className="text-sm font-bold text-text-main">{percentage}%</span>}
                 </div>
             )}
-            <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm">
+            <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
                 <div
-                    className={`h-full ${colors[color]} transition-all duration-500 ease-out rounded-full`}
+                    className={`h-full ${colors[color]} transition-all duration-500 ease-out rounded-full relative`}
                     style={{ width: `${percentage}%` }}
                 >
-                    <div className="w-full h-full bg-white/20 animate-pulse"></div>
+                    <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
                 </div>
             </div>
         </div>

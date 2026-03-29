@@ -24,6 +24,7 @@ const InterviewRoom = () => {
     const [totalQuestions, setTotalQuestions] = useState(8);
     const [isAvatarSpeaking, setIsAvatarSpeaking] = useState(false);
     const [isSimliReady, setIsSimliReady] = useState(false);
+    const [sttTranscript, setSttTranscript] = useState('');
     const [currentAudioUrl, setCurrentAudioUrl] = useState(null);
     const [isQuestionStarted, setIsQuestionStarted] = useState(false);
     const [isDeveloperMode, setIsDeveloperMode] = useState(false); // Developer mode switch
@@ -36,11 +37,31 @@ const InterviewRoom = () => {
     const shouldSendRef = useRef(false);
     const lastPlayedAudioUrlRef = useRef(null);
     const fallbackAudioRef = useRef(null);
+    const simliReadyTimerRef = useRef(null);
+    const questionAudioFallbackTimerRef = useRef(null);
+    const recognitionRef = useRef(null);
 
     const simliAgentRef = useRef(null);
 
+    // Only use location.state on the very first mount
+    const hasUsedInitialStateRef = useRef(false);
+
     useEffect(() => {
-        fetchQuestion();
+        if (location.state?.firstQuestion && !hasUsedInitialStateRef.current) {
+            console.log("[InterviewRoom] Using firstQuestion from location.state:", location.state.firstQuestion);
+            hasUsedInitialStateRef.current = true;
+            const q = location.state.firstQuestion;
+            setCurrentQuestion(q.text || q.questionText);
+            setQuestionNumber(q.displayNumber || "1");
+            setCurrentQuestionId(q.id);
+            setCurrentAudioUrl(q.audioUrl || null);
+            setCurrentImageUrl(q.imageUrl || null);
+            setCurrentCodeSnippet(q.codeSnippet || null);
+            // Don't call fetchQuestion for the first one if we already have it
+        } else {
+            console.log("[InterviewRoom] No location.state.firstQuestion found or already used. Fetching...");
+            fetchQuestion();
+        }
         initializeAudioContext();
     }, []);
 
@@ -76,27 +97,77 @@ const InterviewRoom = () => {
     };
 
     useEffect(() => {
-        if (currentAudioUrl && lastPlayedAudioUrlRef.current !== currentAudioUrl) {
-            if (isSimliReady) {
-                // Simli is ready, use avatar lip-sync
-                lastPlayedAudioUrlRef.current = currentAudioUrl;
-                playAIVoice(currentAudioUrl);
-                setIsQuestionStarted(true);
-            } else {
-                // For the VERY FIRST question, we wait strictly for Simli (unless it takes forever - 12s)
-                const isFirstQuestion = questionNumber === "1";
-                const waitTime = isFirstQuestion ? 12000 : 8000;
+        return () => {
+            if (simliReadyTimerRef.current) {
+                clearTimeout(simliReadyTimerRef.current);
+            }
+            if (questionAudioFallbackTimerRef.current) {
+                clearTimeout(questionAudioFallbackTimerRef.current);
+            }
+            if (mediaRecorderRef.current?.stream) {
+                mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+            }
+            if (audioContextRef.current?.stream) {
+                audioContextRef.current.stream.getTracks().forEach(track => track.stop());
+            }
+            if (audioContextRef.current?.audioContext) {
+                audioContextRef.current.audioContext.close().catch(() => {});
+            }
+        };
+    }, []);
 
-                const timeout = setTimeout(() => {
+    // Set recognition language based on location state
+    const interviewLanguage = location.state?.language || 'Türkçe';
+    const isEnglish = interviewLanguage.toLowerCase().includes('ing') || interviewLanguage.toLowerCase().includes('en');
+    const recognitionLang = isEnglish ? 'en-US' : 'tr-TR';
+
+    useEffect(() => {
+        console.log(`[InterviewRoom] Audio Sync Effect: currentAudioUrl=${currentAudioUrl}, isSimliReady=${isSimliReady}, lastPlayed=${lastPlayedAudioUrlRef.current}`);
+        if (currentAudioUrl && lastPlayedAudioUrlRef.current !== currentAudioUrl) {
+            if (questionAudioFallbackTimerRef.current) {
+                clearTimeout(questionAudioFallbackTimerRef.current);
+            }
+
+            if (isSimliReady) {
+                console.log("[InterviewRoom] Simli is ready. Preparing to play AI voice...");
+                // Give Simli a brief stabilization window after "connected"
+                // before starting question audio, so we don't race the media session.
+                if (simliReadyTimerRef.current) {
+                    clearTimeout(simliReadyTimerRef.current);
+                }
+
+                simliReadyTimerRef.current = setTimeout(() => {
+                    if (lastPlayedAudioUrlRef.current !== currentAudioUrl) {
+                        console.log(`[InterviewRoom] Delay passed. Triggering playAIVoice for ${currentAudioUrl}`);
+                        lastPlayedAudioUrlRef.current = currentAudioUrl;
+                        playAIVoice(currentAudioUrl);
+                        setIsQuestionStarted(true);
+                    }
+                }, 1200);
+            } else {
+                console.log("[InterviewRoom] Simli is NOT ready. Waiting with fallback timer...");
+                // Wait for Simli first; if it still isn't ready after a while,
+                // fall back to plain browser audio instead of blocking forever.
+                const isFirstQuestion = questionNumber === "1";
+                const waitTime = isFirstQuestion ? 15000 : 10000;
+
+                questionAudioFallbackTimerRef.current = setTimeout(() => {
                     if (!isSimliReady && lastPlayedAudioUrlRef.current !== currentAudioUrl) {
                         console.warn(`Simli not ready after ${waitTime / 1000}s, falling back to browser audio.`);
                         lastPlayedAudioUrlRef.current = currentAudioUrl;
                         playAudioFallback(currentAudioUrl);
                     }
                 }, waitTime);
-                return () => clearTimeout(timeout);
             }
         }
+        return () => {
+            if (simliReadyTimerRef.current) {
+                clearTimeout(simliReadyTimerRef.current);
+            }
+            if (questionAudioFallbackTimerRef.current) {
+                clearTimeout(questionAudioFallbackTimerRef.current);
+            }
+        };
     }, [isSimliReady, currentAudioUrl, questionNumber]);
 
     useEffect(() => {
@@ -130,6 +201,12 @@ const InterviewRoom = () => {
         if (fallbackAudioRef.current) {
             fallbackAudioRef.current.pause();
             fallbackAudioRef.current.currentTime = 0;
+        }
+        if (simliReadyTimerRef.current) {
+            clearTimeout(simliReadyTimerRef.current);
+        }
+        if (questionAudioFallbackTimerRef.current) {
+            clearTimeout(questionAudioFallbackTimerRef.current);
         }
         setIsAvatarSpeaking(false);
         lastPlayedAudioUrlRef.current = null;
@@ -260,7 +337,7 @@ const InterviewRoom = () => {
                 } else if (canvasRef.current) {
                     const canvas = canvasRef.current;
                     const ctx = canvas.getContext('2d');
-                    ctx.fillStyle = '#1A1A2E';
+                    ctx.fillStyle = '#f8fafc';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                 }
 
@@ -283,7 +360,7 @@ const InterviewRoom = () => {
         const height = canvas.height;
 
         ctx.clearRect(0, 0, width, height);
-        ctx.fillStyle = '#1A1A2E';
+        ctx.fillStyle = '#f8fafc';
         ctx.fillRect(0, 0, width, height);
 
         const barWidth = (width / dataArray.length) * 2.5;
@@ -293,8 +370,8 @@ const InterviewRoom = () => {
             const barHeight = (dataArray[i] / 255) * height;
 
             const gradient = ctx.createLinearGradient(0, height - barHeight, 0, height);
-            gradient.addColorStop(0, '#A8E6CF');
-            gradient.addColorStop(1, '#DCD6F7');
+            gradient.addColorStop(0, '#6366f1'); // Primary
+            gradient.addColorStop(1, '#8b5cf6'); // Secondary
 
             ctx.fillStyle = gradient;
             ctx.fillRect(x, height - barHeight, barWidth, barHeight);
@@ -307,9 +384,31 @@ const InterviewRoom = () => {
         if (!audioContextRef.current?.stream) return;
 
         setAudioBlob(null);
+        setSttTranscript('');
         setTimeLeft(120);
         setRecordingState('recording');
         shouldSendRef.current = false;
+
+        // Initialize Native Web Speech API for Free STT
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            const recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = recognitionLang; 
+
+            recognition.onresult = (event) => {
+                let finalTranscript = '';
+                for (let i = 0; i < event.results.length; i++) {
+                    finalTranscript += event.results[i][0].transcript;
+                }
+                setSttTranscript(finalTranscript);
+            };
+
+            recognition.onerror = (e) => console.error("Speech recognition error", e);
+            recognition.start();
+            recognitionRef.current = recognition;
+        }
 
         const mediaRecorder = new MediaRecorder(audioContextRef.current.stream);
         const audioChunks = [];
@@ -324,6 +423,10 @@ const InterviewRoom = () => {
             const blob = new Blob(audioChunks, { type: 'audio/wav' });
             setAudioBlob(blob);
             setRecordingState('recorded');
+
+            if (recognitionRef.current) {
+                try { recognitionRef.current.stop(); } catch(e) {}
+            }
 
             if (shouldSendRef.current) {
                 shouldSendRef.current = false;
@@ -375,6 +478,9 @@ const InterviewRoom = () => {
 
         if (recordingState === 'recording' || recordingState === 'paused') {
             shouldSendRef.current = true;
+            if (recognitionRef.current) {
+                try { recognitionRef.current.stop(); } catch(e) {}
+            }
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
                 mediaRecorderRef.current.stop();
             }
@@ -421,7 +527,7 @@ const InterviewRoom = () => {
             const submitPayload = {
                 sessionId: sessionId,
                 questionId: currentQuestionId || questionNumber, // Use the actual DB Question ID, fallback just in case
-                answerText: "",
+                answerText: sttTranscript.trim() || "",
                 audioPath: audioPath,
                 base64Snapshot: base64Image
             };
@@ -444,6 +550,12 @@ const InterviewRoom = () => {
                         fallbackAudioRef.current.pause();
                         fallbackAudioRef.current.currentTime = 0;
                     }
+                    if (simliReadyTimerRef.current) {
+                        clearTimeout(simliReadyTimerRef.current);
+                    }
+                    if (questionAudioFallbackTimerRef.current) {
+                        clearTimeout(questionAudioFallbackTimerRef.current);
+                    }
                     setIsAvatarSpeaking(false);
                     setIsQuestionStarted(false);
                     lastPlayedAudioUrlRef.current = null;
@@ -452,6 +564,7 @@ const InterviewRoom = () => {
                     setQuestionNumber(nextQ.displayNumber || (parseInt(questionNumber) + 1).toString());
                     setRecordingState('idle');
                     setAudioBlob(null);
+                    setSttTranscript('');
                     setUploadedFile(null);
                     setTimeLeft(120);
                     setCurrentAudioUrl(nextQ.audioUrl || null);
@@ -480,6 +593,12 @@ const InterviewRoom = () => {
             fallbackAudioRef.current.pause();
             fallbackAudioRef.current.currentTime = 0;
         }
+        if (simliReadyTimerRef.current) {
+            clearTimeout(simliReadyTimerRef.current);
+        }
+        if (questionAudioFallbackTimerRef.current) {
+            clearTimeout(questionAudioFallbackTimerRef.current);
+        }
         setIsAvatarSpeaking(false);
         setIsQuestionStarted(false);
         lastPlayedAudioUrlRef.current = null; // Force audio effect to trigger for the new question
@@ -495,19 +614,19 @@ const InterviewRoom = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-[#1A1A2E] via-[#252540] to-[#1A1A2E] flex flex-col relative overflow-hidden">
+        <div className="min-h-screen bg-slate-50 flex flex-col relative overflow-hidden">
 
             {/* Progress Bar & Editor Mode */}
             <div className="flex-shrink-0 px-6 pt-6 flex flex-col gap-4 z-10">
                 <div className="flex items-center justify-between">
                     <div className="flex-1 max-w-md mx-auto">
-                        <div className="flex justify-between text-sm text-gray-400 mb-2">
+                        <div className="flex justify-between text-sm text-text-muted mb-2 font-medium">
                             <span>Soru {questionNumber}/{totalQuestions}{String(questionNumber).includes('.') ? ' (Ek Soru)' : ''}</span>
                             <span>{Math.min(100, Math.round((parseInt(questionNumber) / totalQuestions) * 100))}%</span>
                         </div>
-                        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
                             <div
-                                className="h-full bg-gradient-to-r from-[#A8E6CF] to-[#DCD6F7] transition-all duration-500"
+                                className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-500"
                                 style={{ width: `${Math.min(100, (parseInt(questionNumber) / totalQuestions) * 100)}%` }}
                             />
                         </div>
@@ -515,24 +634,23 @@ const InterviewRoom = () => {
 
                     <div className="flex items-center gap-4 ml-4">
                         {/* Editor Mode Switch */}
-                        <div className="flex items-center gap-3 bg-white/5 px-3 py-1.5 rounded-xl border border-white/10">
-                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Editör Modu</span>
+                        <div className="flex items-center gap-3 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm">
+                            <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Editör Modu</span>
                             <button
                                 onClick={() => setIsDeveloperMode(!isDeveloperMode)}
-                                className={`relative w-10 h-5 rounded-full transition-colors duration-300 ${isDeveloperMode ? 'bg-[#A8E6CF]' : 'bg-white/10'}`}
+                                className={`relative w-10 h-5 rounded-full transition-colors duration-300 ${isDeveloperMode ? 'bg-primary' : 'bg-slate-300'}`}
                             >
                                 <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform duration-300 ${isDeveloperMode ? 'translate-x-5' : ''}`} />
                             </button>
                         </div>
 
-                        <Button variant="danger" size="sm" onClick={endInterview} className="bg-orange-500 hover:bg-orange-600 border-none">
+                        <Button variant="danger" size="sm" onClick={endInterview} className="bg-orange-500 hover:bg-orange-600 border-none text-white shadow-sm">
                             <X size={16} />
                             Kaydet ve Çık
                         </Button>
                     </div>
                 </div>
 
-                {/* Question Navigator (Squares) */}
                 <div className="flex justify-center gap-2">
                     {Array.from({ length: totalQuestions }, (_, i) => i + 1).map((num) => (
                         <button
@@ -541,10 +659,10 @@ const InterviewRoom = () => {
                             onClick={() => handleJumpToQuestion(num)}
                             className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold transition-all duration-300 border-2
                                 ${parseInt(questionNumber) === num
-                                    ? 'bg-[#A8E6CF] border-[#A8E6CF] text-[#1A1A2E] shadow-[0_0_15px_rgba(168,230,207,0.5)] scale-110'
+                                    ? 'bg-primary border-primary text-white shadow-md scale-110'
                                     : isDeveloperMode
-                                        ? 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:border-[#A8E6CF]/50'
-                                        : 'bg-white/5 border-transparent text-gray-600 cursor-not-allowed opacity-50'
+                                        ? 'bg-white border-slate-200 text-text-muted hover:bg-slate-50 hover:border-primary/50'
+                                        : 'bg-slate-100 border-transparent text-slate-400 cursor-not-allowed opacity-75'
                                 }`}
                         >
                             {num}
@@ -559,12 +677,13 @@ const InterviewRoom = () => {
                     <SimliAgent
                         ref={simliAgentRef}
                         onStart={() => setIsSimliReady(true)}
+                        onStop={() => setIsSimliReady(false)}
                         onQuotaExceeded={redirectToApiKeysPage}
                     />
                 </div>
 
                 {/* Video Capture UI */}
-                <div className="absolute top-4 right-4 w-48 aspect-video bg-black/50 rounded-lg overflow-hidden shadow-2xl border-2 border-white/20 backdrop-blur-sm z-20">
+                <div className="absolute top-4 right-4 w-48 aspect-video bg-white/50 rounded-xl overflow-hidden shadow-lg border-2 border-slate-200 backdrop-blur-sm z-20">
                     <video
                         ref={videoRef}
                         autoPlay
@@ -580,48 +699,48 @@ const InterviewRoom = () => {
 
             {/* Bottom Panel */}
             <div className="flex-shrink-0 p-6">
-                <Card glass className="max-w-4xl mx-auto">
+                <Card glass className="max-w-4xl mx-auto border-slate-200/60 shadow-xl bg-white/50">
                     <div className="mb-4">
                         <div className="flex items-center gap-2 mb-2">
-                            <Volume2 className="text-[#A8E6CF]" size={20} />
-                            <h3 className="text-lg font-semibold text-white">Soru:</h3>
+                            <Volume2 className="text-primary" size={20} />
+                            <h3 className="text-lg font-extrabold text-text-main">Soru:</h3>
                             {currentAudioUrl && isSimliReady && (
                                 <button
                                     onClick={() => playAIVoice(currentAudioUrl)}
-                                    className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-300 bg-white/5 hover:bg-white/10 hover:text-white rounded-lg transition-colors"
+                                    className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-text-muted bg-slate-100 hover:bg-slate-200 hover:text-text-main rounded-lg transition-colors"
                                 >
                                     <RefreshCcw size={16} />
                                     Tekrar Dinle
                                 </button>
                             )}
                         </div>
-                        <p className="text-xl text-gray-200 leading-relaxed">
+                        <p className="text-xl text-text-main leading-relaxed font-medium">
                             {/* Pro-tip: For question 1, wait for isQuestionStarted (Avatar or Fallback) */}
                             {isQuestionStarted ? (
                                 <Typewriter text={currentQuestion || 'Soru yükleniyor...'} />
                             ) : (
-                                <span className="opacity-50 italic">Mülakatçı hazırlanıyor...</span>
+                                <span className="opacity-50 italic text-text-muted">Mülakatçı hazırlanıyor...</span>
                             )}
                         </p>
 
                         {/* Visual Question Rendering */}
                         {currentImageUrl && (
-                            <div className="mt-4 rounded-xl overflow-hidden border border-white/10 bg-black/20 p-2">
+                            <div className="mt-4 rounded-xl overflow-hidden border border-slate-200 bg-white p-2 shadow-sm">
                                 <img src={currentImageUrl} alt="Visual Scenario" className="w-full max-h-64 object-contain rounded-lg" />
                             </div>
                         )}
                         {currentCodeSnippet && (
-                            <div className="mt-6 rounded-xl overflow-hidden border border-[#A8E6CF]/30 bg-black/40 shadow-inner">
-                                <div className="bg-white/5 px-4 py-2 border-b border-white/10 flex items-center justify-between">
+                            <div className="mt-6 rounded-xl overflow-hidden border border-slate-200 bg-slate-50 shadow-sm">
+                                <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                        <div className="w-3 h-3 rounded-full bg-red-500/50"></div>
-                                        <div className="w-3 h-3 rounded-full bg-yellow-500/50"></div>
-                                        <div className="w-3 h-3 rounded-full bg-green-500/50"></div>
-                                        <span className="text-xs font-medium text-gray-400 ml-2 font-mono">Referans Kod</span>
+                                        <div className="w-3 h-3 rounded-full bg-red-400"></div>
+                                        <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                                        <div className="w-3 h-3 rounded-full bg-green-400"></div>
+                                        <span className="text-xs font-bold text-text-muted ml-2 font-mono">Referans Kod</span>
                                     </div>
-                                    <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">C# / Snippet</span>
+                                    <span className="text-[10px] text-text-muted uppercase tracking-widest font-bold">C# / Snippet</span>
                                 </div>
-                                <div className="p-5 font-mono text-sm text-[#A8E6CF] whitespace-pre-wrap overflow-x-auto leading-relaxed max-h-[400px]">
+                                <div className="p-5 font-mono text-sm text-slate-700 whitespace-pre-wrap overflow-x-auto leading-relaxed max-h-[400px]">
                                     <code>{currentCodeSnippet}</code>
                                 </div>
                             </div>
@@ -636,9 +755,9 @@ const InterviewRoom = () => {
                     <div className="flex flex-col items-center gap-6">
                         {/* Timer Display */}
                         {(recordingState === 'recording' || recordingState === 'paused' || recordingState === 'recorded') && (
-                            <div className={`flex items-center gap-2 px-4 py-2 rounded-full border ${recordingState === 'recorded' ? 'bg-gray-500/20 border-gray-500/30 text-gray-400' : timeLeft <= 10 ? 'bg-red-500/20 border-red-500/30 text-red-400' : 'bg-[#A8E6CF]/20 border-[#A8E6CF]/30 text-[#A8E6CF]'}`}>
+                            <div className={`flex items-center gap-2 px-4 py-2 rounded-full border shadow-sm ${recordingState === 'recorded' ? 'bg-slate-100 border-slate-200 text-text-muted' : timeLeft <= 10 ? 'bg-red-50 border-red-200 text-red-600' : 'bg-primary/10 border-primary/20 text-primary'}`}>
                                 <Timer size={18} />
-                                <span className="font-mono text-lg font-medium">{formatTime(timeLeft)}</span>
+                                <span className="font-mono text-lg font-bold">{formatTime(timeLeft)}</span>
                             </div>
                         )}
 

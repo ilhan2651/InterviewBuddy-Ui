@@ -1,21 +1,42 @@
-import React, { useState } from 'react';
-import { Key, Save, ExternalLink, X, AlertCircle } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { AlertCircle, ExternalLink, Key, X } from 'lucide-react';
 import Card from './ui/Card';
 import Button from './ui/Button';
-import { updateApiKeys } from '../services/api';
+import { getQuotaStatus, updateApiKeys } from '../services/api';
 
 const ApiKeysModal = ({ isOpen, onClose, onSuccess }) => {
     const [simliKey, setSimliKey] = useState('');
     const [elevenLabsKey, setElevenLabsKey] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+    const [isLoadingStatus, setIsLoadingStatus] = useState(true);
+    const [isUpdateMode, setIsUpdateMode] = useState(false);
     const [error, setError] = useState('');
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const loadStatus = async () => {
+            setIsLoadingStatus(true);
+            try {
+                const response = await getQuotaStatus();
+                setIsUpdateMode(Boolean(response.data?.hasOwnKeys));
+            } catch (err) {
+                console.error('API key status load failed', err);
+                setIsUpdateMode(false);
+            } finally {
+                setIsLoadingStatus(false);
+            }
+        };
+
+        loadStatus();
+    }, [isOpen]);
 
     if (!isOpen) return null;
 
     const handleSave = async (e) => {
         e.preventDefault();
         if (!simliKey.trim() || !elevenLabsKey.trim()) {
-            setError('Lütfen her iki API anahtarını da girin.');
+            setError('Lutfen her iki API anahtarini da girin.');
             return;
         }
 
@@ -29,36 +50,39 @@ const ApiKeysModal = ({ isOpen, onClose, onSuccess }) => {
             });
             onSuccess();
         } catch (err) {
-            setError(err.response?.data?.message || 'Anahtarlar kaydedilirken bir hata oluştu.');
+            setError(err.response?.data?.message || 'Anahtarlar kaydedilirken bir hata olustu.');
             setIsSaving(false);
         }
     };
 
     return (
-        <div className="fixed inset-0 bg-[#1A1A2E]/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
-            <Card glass className="max-w-xl w-full relative animate-in fade-in zoom-in duration-300">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <Card glass className="max-w-xl w-full relative animate-in fade-in zoom-in duration-300 bg-white shadow-xl">
                 <button
                     onClick={onClose}
-                    className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+                    className="absolute top-4 right-4 text-slate-400 hover:text-text-main transition-colors"
                 >
                     <X size={24} />
                 </button>
 
                 <div className="mb-6 text-center space-y-2">
-                    <div className="w-16 h-16 bg-gradient-to-br from-[#A8E6CF]/20 to-[#DCD6F7]/20 rounded-2xl mx-auto flex items-center justify-center border border-white/5 mb-4">
-                        <Key className="w-8 h-8 text-[#A8E6CF]" />
+                    <div className="w-16 h-16 bg-primary/10 rounded-2xl mx-auto flex items-center justify-center border border-primary/20 mb-4">
+                        <Key className="w-8 h-8 text-primary" />
                     </div>
-                    <h2 className="text-2xl font-bold text-white">API Anahtarları Gerekli</h2>
-                    <p className="text-gray-400 text-sm">
-                        Ücretsiz (1 adet) mülakat hakkınızı doldurdunuz. Mülakatlara devam edebilmek için lütfen kendi Simli ve ElevenLabs API anahtarlarınızı girin. Öğrenci veya deneme (free-tier) anahtarları tamamen ücretsizdir!
+                    <h2 className="text-2xl font-extrabold text-text-main">
+                        {isUpdateMode ? 'API Anahtarlarını Güncelle' : 'API Anahtarları Gerekli'}
+                    </h2>
+                    <p className="text-text-muted text-sm font-medium">
+                        {isUpdateMode
+                            ? 'Kayıtlı anahtarlarınız var. Yeni Simli ve ElevenLabs anahtarlarınızı girerek mevcut anahtarlarınızın üstüne yazabilirsiniz.'
+                            : 'Ücretsiz mülakat hakkınızı doldurdunuz. Mülakatlara devam etmek için kendi Simli ve ElevenLabs API anahtarlarınızı girin.'}
                     </p>
                 </div>
 
                 <form onSubmit={handleSave} className="space-y-6">
-                    {/* Simli AI Key */}
                     <div className="space-y-3">
-                        <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-[#A8E6CF]"></span>
+                        <label className="text-sm font-bold text-text-main flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-primary"></span>
                             Simli AI API Key
                         </label>
                         <input
@@ -66,20 +90,20 @@ const ApiKeysModal = ({ isOpen, onClose, onSuccess }) => {
                             placeholder="sk-..."
                             value={simliKey}
                             onChange={(e) => setSimliKey(e.target.value)}
-                            className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#A8E6CF]/50 transition-all"
+                            disabled={isLoadingStatus}
+                            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-text-main placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all disabled:opacity-60"
                         />
-                        <p className="text-xs text-gray-500 flex items-center gap-1">
-                            <a href="https://simli.com" target="_blank" rel="noreferrer" className="text-[#A8E6CF] hover:underline inline-flex items-center gap-1">
+                        <p className="text-xs text-text-muted flex items-center gap-1 font-medium">
+                            <a href="https://simli.com" target="_blank" rel="noreferrer" className="text-primary font-bold hover:underline inline-flex items-center gap-1">
                                 simli.com <ExternalLink size={10} />
                             </a>
-                            üzerinden üye olup profilinizden (API Keys) ücretsiz bir anahtar alabilirsiniz.
+                            üzerinden üye olup profilinizdeki API Keys alanından anahtar alabilirsiniz.
                         </p>
                     </div>
 
-                    {/* ElevenLabs Key */}
                     <div className="space-y-3">
-                        <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-[#DCD6F7]"></span>
+                        <label className="text-sm font-bold text-text-main flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-secondary"></span>
                             ElevenLabs API Key
                         </label>
                         <input
@@ -87,25 +111,26 @@ const ApiKeysModal = ({ isOpen, onClose, onSuccess }) => {
                             placeholder="sk_..."
                             value={elevenLabsKey}
                             onChange={(e) => setElevenLabsKey(e.target.value)}
-                            className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#DCD6F7]/50 transition-all"
+                            disabled={isLoadingStatus}
+                            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-text-main placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-secondary/50 transition-all disabled:opacity-60"
                         />
-                        <p className="text-xs text-gray-500 flex items-center gap-1">
-                            <a href="https://elevenlabs.io" target="_blank" rel="noreferrer" className="text-[#DCD6F7] hover:underline inline-flex items-center gap-1">
+                        <p className="text-xs text-text-muted flex items-center gap-1 font-medium">
+                            <a href="https://elevenlabs.io" target="_blank" rel="noreferrer" className="text-secondary font-bold hover:underline inline-flex items-center gap-1">
                                 elevenlabs.io <ExternalLink size={10} />
                             </a>
-                            üzerinden üye olup profil simgenize tıklayarak "Profile" menüsünden API Key alabilirsiniz.
+                            üzerinden hesabınıza girip profil altından API key alabilirsiniz.
                         </p>
                     </div>
 
-                    <div className="bg-[#A8E6CF]/10 p-4 rounded-xl border border-[#A8E6CF]/20 flex items-start gap-4">
-                        <AlertCircle className="w-6 h-6 text-[#A8E6CF] flex-shrink-0 mt-0.5" />
-                        <p className="text-xs text-[#A8E6CF]/90">
-                            <strong>Güvenlik Notu:</strong> Anahtarlarınız AES-256 ile şifrelenerek saklanır, başkası tarafından asla okunamaz. Cüzdan mantığıyla yalnızca mülakatlarınız esnasında sizin kullanımınız için çözülür.
+                    <div className="bg-primary/5 p-4 rounded-xl border border-primary/20 flex items-start gap-4">
+                        <AlertCircle className="w-6 h-6 text-primary flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-slate-700 font-medium">
+                            <strong className="text-primary font-bold">Güvenlik Notu:</strong> Anahtarlarınız şifrelenerek saklanır. Sadece kendi kullanımınız sırasında çözülür ve geçerli değilse kayıt sırasında size hata olarak gösterilir.
                         </p>
                     </div>
 
                     {error && (
-                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm text-center">
+                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm font-bold text-center">
                             {error}
                         </div>
                     )}
@@ -113,10 +138,10 @@ const ApiKeysModal = ({ isOpen, onClose, onSuccess }) => {
                     <div className="flex gap-4 pt-2">
                         <Button
                             type="button"
-                            variant="glass"
+                            variant="ghost"
                             onClick={onClose}
-                            className="flex-1"
-                            disabled={isSaving}
+                            className="flex-1 border border-slate-200"
+                            disabled={isSaving || isLoadingStatus}
                         >
                             İptal
                         </Button>
@@ -124,9 +149,15 @@ const ApiKeysModal = ({ isOpen, onClose, onSuccess }) => {
                             type="submit"
                             variant="primary"
                             className="flex-1"
-                            disabled={isSaving}
+                            disabled={isSaving || isLoadingStatus}
                         >
-                            {isSaving ? 'Kaydediliyor...' : 'Kaydet ve Devam Et'}
+                            {isLoadingStatus
+                                ? 'Durum Yukleniyor...'
+                                : isSaving
+                                    ? 'Kaydediliyor...'
+                                    : isUpdateMode
+                                        ? 'Guncelle ve Devam Et'
+                                        : 'Kaydet ve Devam Et'}
                         </Button>
                     </div>
                 </form>

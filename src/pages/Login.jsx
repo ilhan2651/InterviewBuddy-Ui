@@ -21,53 +21,54 @@ const Login = () => {
         setErrors({ ...errors, [e.target.name]: '' });
     };
 
- const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
 
-    try {
-        const response = await login(formData.email, formData.password);
-        
-        // BURAYA CONSOLE LOG EKLEYİN - Backend'den ne dönüyor görelim
-        console.log('Backend Response:', response);
-        console.log('Response Data:', response.data);
-        console.log('Success:', response.data.success);
-        console.log('Token:', response.data.token);
-        
-        if (response.data.success && response.data.token) {
-            localStorage.setItem('token', response.data.token);
-            navigate('/dashboard');
-        } else {
-            setErrors({ general: response.data.message || 'Email veya şifre hatalı' });
+        try {
+            const response = await login(formData.email, formData.password);
+
+            // BURAYA CONSOLE LOG EKLEYİN - Backend'den ne dönüyor görelim
+            console.log('Backend Response:', response);
+            console.log('Response Data:', response.data);
+            console.log('Success:', response.data.success);
+            console.log('Token:', response.data.token);
+
+            if (response.data.success && response.data.token) {
+                localStorage.setItem('token', response.data.token);
+                navigate('/dashboard');
+            } else {
+                setErrors({ general: response.data.message || 'Email veya şifre hatalı' });
+            }
+        } catch (error) {
+            // HATA DETAYINI GÖSTER
+            console.error('Login Error:', error);
+            console.error('Error Response:', error.response);
+            console.error('Error Message:', error.message);
+
+            setErrors({
+                general: error.response?.data?.message || error.message || 'Bir hata oluştu'
+            });
+        } finally {
+            setLoading(false);
         }
-    } catch (error) {
-        // HATA DETAYINI GÖSTER
-        console.error('Login Error:', error);
-        console.error('Error Response:', error.response);
-        console.error('Error Message:', error.message);
-        
-        setErrors({ 
-            general: error.response?.data?.message || error.message || 'Bir hata oluştu' 
-        });
-    } finally {
-        setLoading(false);
-    }
-};
+    };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-[#1A1A2E] via-[#252540] to-[#1A1A2E] flex items-center justify-center p-4">
-            {/* Animated background shapes */}
-            <div className="absolute inset-0 overflow-hidden">
-                <div className="absolute top-20 left-10 w-72 h-72 bg-[#A8E6CF]/10 rounded-full blur-3xl animate-pulse"></div>
-                <div className="absolute bottom-20 right-10 w-96 h-96 bg-[#DCD6F7]/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
+            {/* Soft background shapes */}
+            <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-primary/10 rounded-full blur-3xl animate-pulse"></div>
+                <div className="absolute bottom-[-10%] right-[-10%] w-[30rem] h-[30rem] bg-secondary/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
             </div>
 
             <Card glass className="w-full max-w-md relative z-10">
-                <div className="text-center mb-8">
-                    <h1 className="text-4xl font-bold bg-gradient-to-r from-[#A8E6CF] to-[#DCD6F7] bg-clip-text text-transparent mb-2">
+                <div className="text-center mb-8 flex flex-col items-center">
+                    <img src="/logo.png" alt="Interview Buddy Logo" className="h-16 mb-4 object-contain mix-blend-multiply" />
+                    <h1 className="text-4xl font-extrabold text-text-main tracking-tight mb-2">
                         Hoş Geldin! 👋
                     </h1>
-                    <p className="text-gray-400">AI mülakat asistanına giriş yap</p>
+                    <p className="text-text-muted">AI mülakat asistanına giriş yap</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
@@ -112,11 +113,11 @@ const Login = () => {
                 </form>
 
                 <div className="mt-6 text-center">
-                    <p className="text-gray-400">
+                    <p className="text-text-muted">
                         Hesabın yok mu?{' '}
                         <button
                             onClick={() => navigate('/register')}
-                            className="text-[#A8E6CF] hover:text-[#8FD9B6] font-semibold transition-colors"
+                            className="text-primary hover:text-primary-hover font-semibold transition-colors"
                         >
                             Kayıt Ol
                         </button>

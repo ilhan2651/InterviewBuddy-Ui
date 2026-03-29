@@ -9,10 +9,10 @@ const Card = ({
     ...props
 }) => {
     const glassStyles = glass
-        ? "bg-white/10 backdrop-blur-lg border border-white/20"
-        : "bg-gradient-to-br from-[#252540] to-[#1A1A2E] border border-white/10";
+        ? "glass"
+        : "bg-surface border border-slate-200 shadow-sm";
 
-    const hoverStyles = hover ? "hover:shadow-2xl hover:shadow-[#A8E6CF]/20 hover:scale-[1.02] transition-all duration-300" : "";
+    const hoverStyles = hover ? "hover:shadow-xl hover:-translate-y-1 transition-all duration-300" : "";
 
     return (
         <div

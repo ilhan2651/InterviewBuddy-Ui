@@ -73,7 +73,12 @@ const InterviewSetup = () => {
 
             // Mülakat başlatıldı, yönlendirme yapılıyor
             setTimeout(() => {
-                navigate(`/interview/session/${response.data.sessionId}`);
+                navigate(`/interview/session/${response.data.sessionId}`, {
+                    state: {
+                        firstQuestion: response.data.firstQuestion,
+                        language: language
+                    }
+                });
             }, 1000); // 1 saniye bekle ki kullanıcı "Hazırlanıyor" yazısını görsün
 
         } catch (error) {
@@ -146,32 +151,32 @@ const InterviewSetup = () => {
     ];
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-[#1A1A2E] via-[#252540] to-[#1A1A2E] flex items-center justify-center p-6 relative overflow-hidden">
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 relative overflow-hidden">
             {/* Background Animations */}
-            <div className="absolute top-20 left-20 w-72 h-72 bg-[#A8E6CF]/10 rounded-full blur-3xl animate-pulse"></div>
-            <div className="absolute bottom-20 right-20 w-96 h-96 bg-[#DCD6F7]/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
+            <div className="absolute top-20 left-20 w-72 h-72 bg-primary/10 rounded-full blur-3xl animate-pulse pointer-events-none"></div>
+            <div className="absolute bottom-20 right-20 w-96 h-96 bg-secondary/10 rounded-full blur-3xl animate-pulse delay-1000 pointer-events-none"></div>
 
             {/* Loading Overlay */}
             {isLoading && (
-                <div className="fixed inset-0 bg-[#1A1A2E]/90 backdrop-blur-md z-50 flex flex-col items-center justify-center transition-opacity duration-300">
+                <div className="fixed inset-0 bg-white/80 backdrop-blur-xl z-50 flex flex-col items-center justify-center transition-opacity duration-300">
                     <div className="relative w-32 h-32 mb-8">
                         {/* Outer Ring */}
-                        <div className="absolute inset-0 border-4 border-[#A8E6CF]/30 rounded-full animate-[spin_3s_linear_infinite]"></div>
+                        <div className="absolute inset-0 border-4 border-primary/20 rounded-full animate-[spin_3s_linear_infinite]"></div>
                         {/* Middle Ring */}
-                        <div className="absolute inset-2 border-4 border-[#DCD6F7]/50 rounded-full border-t-transparent animate-[spin_2s_linear_infinite_reverse]"></div>
+                        <div className="absolute inset-2 border-4 border-secondary/30 rounded-full border-t-transparent animate-[spin_2s_linear_infinite_reverse]"></div>
                         {/* Inner Pulsing Circle */}
-                        <div className="absolute inset-8 bg-gradient-to-br from-[#A8E6CF] to-[#DCD6F7] rounded-full animate-pulse blur-sm opacity-50"></div>
+                        <div className="absolute inset-8 bg-gradient-to-br from-primary to-secondary rounded-full animate-pulse blur-md opacity-20"></div>
 
                         {/* Center Icon */}
-                        <div className="absolute inset-0 flex items-center justify-center text-white">
+                        <div className="absolute inset-0 flex items-center justify-center text-primary">
                             <Activity className="w-8 h-8 animate-bounce" />
                         </div>
                     </div>
 
-                    <h2 className="text-3xl font-bold text-white mb-2 animate-pulse">
+                    <h2 className="text-3xl font-extrabold text-text-main mb-2 animate-pulse tracking-tight">
                         Mülakat Hazırlanıyor...
                     </h2>
-                    <p className="text-[#A8E6CF] text-lg font-mono">
+                    <p className="text-primary font-medium text-lg">
                         Yapay zeka sorularınızı oluşturuyor ve avatar bağlanıyor...
                     </p>
                 </div>
@@ -181,10 +186,10 @@ const InterviewSetup = () => {
                 {/* Left Side: Configuration */}
                 <div className="space-y-8">
                     <div>
-                        <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#A8E6CF] to-[#DCD6F7] mb-2">
+                        <h2 className="text-3xl font-extrabold text-text-main mb-2 tracking-tight">
                             Mülakat Kurulumu
                         </h2>
-                        <p className="text-gray-400">
+                        <p className="text-text-muted">
                             Rolünüzü ve seviyenizi seçerek size özel mülakat deneyimini başlatın.
                         </p>
                     </div>
@@ -192,8 +197,8 @@ const InterviewSetup = () => {
                     <div className="space-y-6">
                         {/* Profession Selection */}
                         <div className="space-y-3">
-                            <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                                <Briefcase size={16} className="text-[#A8E6CF]" />
+                            <label className="text-sm font-bold text-text-main flex items-center gap-2 uppercase tracking-wider">
+                                <Briefcase size={16} className="text-primary" />
                                 Meslek Alanı
                             </label>
                             <div className="grid grid-cols-2 gap-3">
@@ -201,9 +206,9 @@ const InterviewSetup = () => {
                                     <button
                                         key={p}
                                         onClick={() => setProfession(p)}
-                                        className={`p-2.5 rounded-xl text-xs font-medium transition-all duration-300 border ${profession === p
-                                            ? 'bg-[#A8E6CF]/20 border-[#A8E6CF] text-white shadow-[0_0_15px_rgba(168,230,207,0.3)]'
-                                            : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:border-white/20'
+                                        className={`p-2.5 rounded-xl text-xs font-semibold transition-all duration-300 border ${profession === p
+                                            ? 'bg-primary border-primary text-white shadow-md transform -translate-y-0.5'
+                                            : 'bg-white border-slate-200 text-text-muted hover:bg-slate-50 hover:border-slate-300 hover:text-text-main'
                                             }`}
                                     >
                                         {p}
@@ -216,15 +221,15 @@ const InterviewSetup = () => {
                                     value={customProfession}
                                     onChange={(e) => setCustomProfession(e.target.value)}
                                     placeholder="Lütfen mesleğinizi / alanınızı yazın..."
-                                    className="w-full mt-2 bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#A8E6CF]/50 transition-colors"
+                                    className="w-full mt-2 bg-white border border-slate-200 shadow-sm rounded-xl px-4 py-3 text-text-main placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
                                 />
                             )}
                         </div>
 
                         {/* Role / Job Title Selection */}
                         <div className="space-y-3">
-                            <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                                <Briefcase size={16} className="text-[#A8E6CF]" />
+                            <label className="text-sm font-bold text-text-main flex items-center gap-2 uppercase tracking-wider">
+                                <Briefcase size={16} className="text-primary" />
                                 Pozisyon / Rol
                             </label>
                             <div className="grid grid-cols-2 gap-3">
@@ -232,9 +237,9 @@ const InterviewSetup = () => {
                                     <button
                                         key={r}
                                         onClick={() => setRole(r)}
-                                        className={`p-2.5 rounded-xl text-xs font-medium transition-all duration-300 border ${role === r
-                                            ? 'bg-[#A8E6CF]/20 border-[#A8E6CF] text-white shadow-[0_0_15px_rgba(168,230,207,0.3)]'
-                                            : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:border-white/20'
+                                        className={`p-2.5 rounded-xl text-xs font-semibold transition-all duration-300 border ${role === r
+                                            ? 'bg-primary border-primary text-white shadow-md transform -translate-y-0.5'
+                                            : 'bg-white border-slate-200 text-text-muted hover:bg-slate-50 hover:border-slate-300 hover:text-text-main'
                                             }`}
                                     >
                                         {r}
@@ -245,8 +250,8 @@ const InterviewSetup = () => {
 
                         {/* Level Selection */}
                         <div className="space-y-3">
-                            <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                                <Activity size={16} className="text-[#DCD6F7]" />
+                            <label className="text-sm font-bold text-text-main flex items-center gap-2 uppercase tracking-wider">
+                                <Activity size={16} className="text-secondary" />
                                 Deneyim Seviyesi
                             </label>
                             <div className="flex gap-3">
@@ -254,9 +259,9 @@ const InterviewSetup = () => {
                                     <button
                                         key={l.id}
                                         onClick={() => setLevel(l.id)}
-                                        className={`flex-1 p-2.5 rounded-xl text-sm font-medium transition-all duration-300 border ${level === l.id
-                                            ? 'bg-[#DCD6F7]/20 border-[#DCD6F7] text-white shadow-[0_0_15px_rgba(220,214,247,0.3)]'
-                                            : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:border-white/20'
+                                        className={`flex-1 p-2.5 rounded-xl text-sm font-semibold transition-all duration-300 border ${level === l.id
+                                            ? 'bg-secondary border-secondary text-white shadow-md transform -translate-y-0.5'
+                                            : 'bg-white border-slate-200 text-text-muted hover:bg-slate-50 hover:border-slate-300 hover:text-text-main'
                                             }`}
                                     >
                                         {l.label}
@@ -267,8 +272,8 @@ const InterviewSetup = () => {
 
                         {/* Difficulty Selection */}
                         <div className="space-y-3">
-                            <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                                <Activity size={16} className="text-[#F2A365]" />
+                            <label className="text-sm font-bold text-text-main flex items-center gap-2 uppercase tracking-wider">
+                                <Activity size={16} className="text-orange-500" />
                                 Soruların Zorluğu
                             </label>
                             <div className="flex gap-3">
@@ -276,9 +281,9 @@ const InterviewSetup = () => {
                                     <button
                                         key={diff.id}
                                         onClick={() => setDifficulty(diff.id)}
-                                        className={`flex-1 p-2.5 rounded-xl text-sm font-medium transition-all duration-300 border ${difficulty === diff.id
-                                            ? 'bg-[#F2A365]/20 border-[#F2A365] text-white shadow-[0_0_15px_rgba(242,163,101,0.3)]'
-                                            : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:border-white/20'
+                                        className={`flex-1 p-2.5 rounded-xl text-sm font-semibold transition-all duration-300 border ${difficulty === diff.id
+                                            ? 'bg-orange-500 border-orange-500 text-white shadow-md transform -translate-y-0.5'
+                                            : 'bg-white border-slate-200 text-text-muted hover:bg-slate-50 hover:border-slate-300 hover:text-text-main'
                                             }`}
                                     >
                                         {diff.label}
@@ -288,8 +293,8 @@ const InterviewSetup = () => {
                         </div>
                         {/* Language Selection */}
                         <div className="space-y-3">
-                            <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                                <Activity size={16} className="text-[#A8E6CF]" />
+                            <label className="text-sm font-bold text-text-main flex items-center gap-2 uppercase tracking-wider">
+                                <Activity size={16} className="text-emerald-500" />
                                 Mülakat Dili
                             </label>
                             <div className="flex gap-3">
@@ -297,9 +302,9 @@ const InterviewSetup = () => {
                                     <button
                                         key={l.id}
                                         onClick={() => setLanguage(l.id)}
-                                        className={`flex-1 p-3 rounded-xl text-sm font-medium transition-all duration-300 border ${language === l.id
-                                            ? 'bg-[#A8E6CF]/20 border-[#A8E6CF] text-white shadow-[0_0_15px_rgba(168,230,207,0.3)]'
-                                            : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:border-white/20'
+                                        className={`flex-1 p-3 rounded-xl text-sm font-semibold transition-all duration-300 border ${language === l.id
+                                            ? 'bg-emerald-500 border-emerald-500 text-white shadow-md transform -translate-y-0.5'
+                                            : 'bg-white border-slate-200 text-text-muted hover:bg-slate-50 hover:border-slate-300 hover:text-text-main'
                                             }`}
                                     >
                                         {l.label}
@@ -311,49 +316,49 @@ const InterviewSetup = () => {
                 </div>
 
                 {/* Right Side: Preview & Action */}
-                <div className="bg-white/5 rounded-2xl p-6 border border-white/10 flex flex-col justify-between">
+                <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between">
                     <div className="space-y-6">
-                        <div className="flex items-center justify-between p-4 bg-black/20 rounded-xl border border-white/5">
+                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
                             <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-lg ${microphonePermission ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                <div className={`p-2 rounded-lg ${microphonePermission ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
                                     <Mic size={20} />
                                 </div>
                                 <div>
-                                    <p className="text-sm font-medium text-white">Mikrofon Kontrolü</p>
-                                    <p className="text-xs text-gray-400">
+                                    <p className="text-sm font-bold text-text-main">Mikrofon Kontrolü</p>
+                                    <p className="text-xs text-text-muted">
                                         {microphonePermission ? 'Kullanıma hazır' : 'İzin verilmedi'}
                                     </p>
                                 </div>
                             </div>
                             {microphonePermission ? (
-                                <CheckCircle size={20} className="text-green-400" />
+                                <CheckCircle size={20} className="text-green-500" />
                             ) : (
-                                <AlertTriangle size={20} className="text-red-400" />
+                                <AlertTriangle size={20} className="text-red-500" />
                             )}
                         </div>
 
-                        <div className="bg-gradient-to-br from-[#A8E6CF]/10 to-[#DCD6F7]/10 rounded-xl p-6 border border-white/10">
-                            <h3 className="text-lg font-semibold text-white mb-4">Özet</h3>
+                        <div className="bg-primary/5 rounded-xl p-6 border border-primary/10">
+                            <h3 className="text-lg font-bold text-text-main mb-4">Özet</h3>
                             <div className="space-y-3">
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-400">Alan / Pozisyon:</span>
-                                    <span className="text-[#A8E6CF] font-medium">{profession === 'Diğer' && customProfession ? customProfession : profession} ({role})</span>
+                                    <span className="text-text-muted">Alan / Pozisyon:</span>
+                                    <span className="text-primary font-bold">{profession === 'Diğer' && customProfession ? customProfession : profession} ({role})</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-400">Seviye:</span>
-                                    <span className="text-[#DCD6F7] font-medium">{levels.find(l => l.id === level)?.label ?? level}</span>
+                                    <span className="text-text-muted">Seviye:</span>
+                                    <span className="text-secondary font-bold">{levels.find(l => l.id === level)?.label ?? level}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-400">Zorluk:</span>
-                                    <span className="text-[#F2A365] font-medium">{difficulties.find(d => d.id === difficulty)?.label}</span>
+                                    <span className="text-text-muted">Zorluk:</span>
+                                    <span className="text-orange-500 font-bold">{difficulties.find(d => d.id === difficulty)?.label}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-400">Dil:</span>
-                                    <span className="text-white font-medium">{languages.find(l => l.id === language)?.label}</span>
+                                    <span className="text-text-muted">Dil:</span>
+                                    <span className="text-emerald-500 font-bold">{languages.find(l => l.id === language)?.label}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-400">Tahmini Süre:</span>
-                                    <span className="text-white font-medium">15-20 Dakika</span>
+                                    <span className="text-text-muted">Tahmini Süre:</span>
+                                    <span className="text-text-main font-bold">15-20 Dakika</span>
                                 </div>
                             </div>
                         </div>

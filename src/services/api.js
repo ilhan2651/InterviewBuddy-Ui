@@ -63,6 +63,9 @@ export const login = (email, password) =>
 export const register = (userData) =>
     apiClient.post("/Auth/register", userData);
 
+export const verifyEmail = (token) =>
+    apiClient.post("/Auth/verify-email", { token });
+
 export const logout = () => {
     localStorage.removeItem("token");
     window.location.href = "/login";

@@ -1,10 +1,14 @@
 @import "tailwindcss";
 
 @theme {
-  --color-dark: #1A1A2E;
-  --color-primary: #A8E6CF;
-  --color-secondary: #DCD6F7;
-  --color-border: rgba(255, 255, 255, 0.1);
+  --color-light: #F8FAFC;
+  --color-primary: #4F46E5;
+  --color-primary-hover: #4338CA;
+  --color-secondary: #818CF8;
+  --color-surface: #FFFFFF;
+  --color-border: #E2E8F0;
+  --color-text-main: #0F172A;
+  --color-text-muted: #64748B;
 
   --font-inter: "Inter", "Outfit", system-ui, -apple-system, sans-serif;
 }
@@ -15,14 +19,14 @@
   }
 
   body {
-    @apply bg-dark text-white antialiased;
+    @apply bg-light text-text-main antialiased selection:bg-primary/20 selection:text-primary;
     font-family: var(--font-inter);
   }
 }
 
 @layer utilities {
   .glass {
-    @apply bg-white/10 backdrop-blur-lg border border-white/20;
+    @apply bg-white/70 backdrop-blur-xl border border-white/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)];
   }
 
   .text-gradient {
@@ -32,28 +36,27 @@
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 10px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #A8E6CF 0%, #DCD6F7 100%);
+  background: #CBD5E1;
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #8FD9B6 0%, #C8BFE7 100%);
+  background: #94A3B8;
 }
 
 /* Animations */
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(15px);
   }
 
   to {
@@ -63,5 +66,5 @@
 }
 
 .animate-fadeIn {
-  animation: fadeIn 0.5s ease-out;
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

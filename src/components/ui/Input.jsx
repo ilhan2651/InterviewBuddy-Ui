@@ -15,13 +15,13 @@ const Input = ({
     return (
         <div className={`w-full ${className}`}>
             {label && (
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-semibold text-text-main mb-2">
                     {label}
                 </label>
             )}
             <div className="relative">
                 {Icon && (
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
                         <Icon size={20} />
                     </div>
                 )}
@@ -32,13 +32,13 @@ const Input = ({
                     placeholder={placeholder}
                     className={`
             w-full px-4 py-3 rounded-2xl
-            bg-white/5 backdrop-blur-sm
-            border border-white/10
-            text-white placeholder-gray-500
-            focus:outline-none focus:ring-2 focus:ring-[#A8E6CF] focus:border-transparent
+            bg-white
+            border border-slate-200 shadow-sm
+            text-text-main placeholder-slate-400
+            focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary
             transition-all duration-300
             ${Icon ? 'pl-12' : ''}
-            ${error ? 'border-red-500' : ''}
+            ${error ? 'border-red-500 focus:ring-red-500/10' : ''}
           `}
                     {...props}
                 />
